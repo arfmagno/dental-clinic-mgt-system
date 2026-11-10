@@ -1,4 +1,4 @@
-import { legacyV3Address } from '@clinic/shared';
+import { legacyV3Address, type LegacyAddressV2 } from '@clinic/shared';
 import type { MigrationContext } from './types.js';
 
 /**
@@ -15,8 +15,8 @@ export async function up(ctx: MigrationContext): Promise<void> {
     ALTER TABLE patients ADD COLUMN addressCountryCode TEXT NOT NULL DEFAULT '';
   `);
 
-  const addresses = await db.all<Record<string, any>>('SELECT * FROM patient_addresses');
-  const byPatient = new Map<string, Record<string, any>[]>();
+  const addresses = await db.all<LegacyAddressV2 & { patientId: string }>('SELECT * FROM patient_addresses');
+  const byPatient = new Map<string, (LegacyAddressV2 & { patientId: string })[]>();
   for (const a of addresses) byPatient.set(a.patientId, [...(byPatient.get(a.patientId) ?? []), a]);
 
   // Only patients whose address actually changes are re-stamped (and therefore re-pulled by devices).

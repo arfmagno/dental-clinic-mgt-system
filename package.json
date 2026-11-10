@@ -12,9 +12,15 @@
     "build": "npm run build -w @clinic/web",
     "start": "npm run start -w @clinic/server",
     "typecheck": "npm run typecheck -w @clinic/shared && npm run typecheck -w @clinic/server && npm run typecheck -w @clinic/web",
-    "test": "npm run test -w @clinic/server && npm run test -w @clinic/web"
+    "test": "npm run test -w @clinic/server && npm run test -w @clinic/web",
+    "lint": "oxlint --deny-warnings && npm run lint:migrations -w @clinic/server",
+    "lint:fix": "oxlint --fix",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "seed": "npm run seed -w @clinic/server",
+    "migration:new": "npm run migration:new -w @clinic/server --"
   },
   "devDependencies": {
-    "concurrently": "^9.2.5"
+    "concurrently": "^9.2.5",
+    "oxlint": "^1.93.0"
   }
 }

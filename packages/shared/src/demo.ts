@@ -131,9 +131,9 @@ export function buildDemoData(opts: DemoOptions = {}): Record<SyncTable, AnyRow[
       const method: PaymentMethod = pick(['cash', 'cash', 'cash', 'e_wallet', 'e_wallet', 'bank_transfer']);
       if (share === 1 && costCents > 3000_00 && r() < 0.5) {
         // paid in two parts
-        const first = Math.round(costCents / 2 / 100) * 100;
-        out.payments.push({ ...base(demoId(`payment:${i}:${v}:0`)), procedureId: prId, amountCents: first, paidAt: `${date}T${time}`, method, remarks: 'Down payment' });
-        out.payments.push({ ...base(demoId(`payment:${i}:${v}:1`)), procedureId: prId, amountCents: costCents - first, paidAt: `${daysAgo(Math.max(0, ago - int(7, 30)))}T${time}`, method: 'cash', remarks: '' });
+        const down = Math.round(costCents / 2 / 100) * 100;
+        out.payments.push({ ...base(demoId(`payment:${i}:${v}:0`)), procedureId: prId, amountCents: down, paidAt: `${date}T${time}`, method, remarks: 'Down payment' });
+        out.payments.push({ ...base(demoId(`payment:${i}:${v}:1`)), procedureId: prId, amountCents: costCents - down, paidAt: `${daysAgo(Math.max(0, ago - int(7, 30)))}T${time}`, method: 'cash', remarks: '' });
       } else if (share > 0 && costCents > 0) {
         out.payments.push({ ...base(demoId(`payment:${i}:${v}:0`)), procedureId: prId, amountCents: Math.round((costCents * share) / 100) * 100, paidAt: `${date}T${time}`, method, remarks: '' });
       }

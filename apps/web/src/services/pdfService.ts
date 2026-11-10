@@ -21,6 +21,9 @@ import { buildChart } from '../domain/chart';
 import { ageOf, formalName, formatAddress, formatDate, formatTime } from '../domain/format';
 import type { PatientBundle } from '../hooks/useData';
 
+/** Where the last jspdf-autotable table ended (the plugin records it on the document). */
+const lastTableY = (doc: jsPDF) => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
+
 type RGB = [number, number, number];
 const TEAL: RGB = [13, 148, 136];
 const INK: RGB = [30, 41, 59];
@@ -148,7 +151,7 @@ export async function exportPatientPdf(bundle: PatientBundle, clinicName = 'Dent
     styles: { fontSize: 9, cellPadding: { top: 0.8, bottom: 0.8, left: 0, right: 2 }, textColor: INK },
     columnStyles: { 0: { textColor: MUTED, cellWidth: 36 } },
   });
-  y = Math.max((doc as any).lastAutoTable.finalY, patient.photo ? y + 30 : 0) + 4;
+  y = Math.max(lastTableY(doc), patient.photo ? y + 30 : 0) + 4;
 
   const section = (title: string, lines: string[]) => {
     if (!lines.length) return;
@@ -203,7 +206,10 @@ export async function exportPatientPdf(bundle: PatientBundle, clinicName = 'Dent
   doc.setFontSize(7.5);
   for (const c of CONDITIONS) {
     const label = CONDITION_LABEL[c];
-    if (lx + 8 + doc.getTextWidth(label) > W - M) (lx = M), (y += 5);
+    if (lx + 8 + doc.getTextWidth(label) > W - M) {
+      lx = M;
+      y += 5;
+    }
     doc.setFillColor(...hex(CONDITION_COLOR[c])).setDrawColor(...LINE).setLineWidth(0.2).rect(lx, y - 2.6, 3, 3, 'FD');
     doc.setTextColor(...INK).text(label, lx + 4.2, y);
     lx += 4.2 + doc.getTextWidth(label) + 4;
@@ -256,7 +262,7 @@ export async function exportPatientPdf(bundle: PatientBundle, clinicName = 'Dent
   // ---- payments ----
   if (payments.length) {
     const typeOf = new Map(procedures.map((p) => [p.id, p.type]));
-    y = (doc as any).lastAutoTable.finalY + 8;
+    y = lastTableY(doc) + 8;
     if (y > 262) {
       doc.addPage();
       y = 16;

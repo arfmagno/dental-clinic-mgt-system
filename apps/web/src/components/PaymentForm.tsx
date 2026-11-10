@@ -11,7 +11,7 @@ interface Props {
 
 /** Record money received for a procedure. Defaults: the outstanding balance, cash, now. */
 export function PaymentForm({ procedureId, balanceCents, onDone }: Props) {
-  const now = useMemo(nowLocal, []);
+  const now = useMemo(() => nowLocal(), []);
   const [amount, setAmount] = useState(balanceCents > 0 ? String(balanceCents / 100) : '');
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [date, setDate] = useState(now.date);

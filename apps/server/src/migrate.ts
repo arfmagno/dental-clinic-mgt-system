@@ -1,4 +1,4 @@
-import type { SqlDriver, SqlExecutor } from './infra/db/driver.js';
+import type { SqlDriver, SqlExecutor, SqlParam } from './infra/db/driver.js';
 import type { Migration, MigrationContext } from './migrations/types.js';
 import { LEGACY_VERSIONS, loadMigrations } from './migrations/index.js';
 import { SyncRepository } from './repositories/syncRepository.js';
@@ -11,7 +11,7 @@ function makeContext(db: SqlExecutor): MigrationContext {
     db,
     async backfill(table, set, where, params = []) {
       if (!ident.test(table)) throw new Error(`Bad table name: ${table}`);
-      const rows = await db.all<Record<string, any>>(`SELECT * FROM ${table}${where ? ` WHERE ${where}` : ''}`, params as any[]);
+      const rows = await db.all<Record<string, unknown>>(`SELECT * FROM ${table}${where ? ` WHERE ${where}` : ''}`, params as SqlParam[]);
       for (const row of rows) {
         const values = typeof set === 'function' ? set(row) : set;
         const cols = Object.keys(values);
@@ -19,10 +19,10 @@ function makeContext(db: SqlExecutor): MigrationContext {
         const seq = await repo.nextSeq();
         const assignments = [...cols.map((c) => `${c} = ?`), 'updatedAt = ?', 'serverSeq = ?'].join(', ');
         await db.run(`UPDATE ${table} SET ${assignments} WHERE id = ?`, [
-          ...cols.map((c) => values[c] as any),
+          ...cols.map((c) => values[c] as SqlParam),
           new Date().toISOString(),
           seq,
-          row.id,
+          row.id as string,
         ]);
       }
       return rows.length;
@@ -34,7 +34,7 @@ function makeContext(db: SqlExecutor): MigrationContext {
       const seq = await repo.nextSeq();
       await db.run(
         `INSERT INTO ${table} (${[...cols, 'serverSeq'].join(', ')}) VALUES (${[...cols, 'serverSeq'].map(() => '?').join(', ')})`,
-        [...cols.map((c) => row[c] as any), seq],
+        [...cols.map((c) => row[c] as SqlParam), seq],
       );
     },
   };

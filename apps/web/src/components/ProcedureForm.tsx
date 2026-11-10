@@ -40,7 +40,7 @@ const defaultCondition = (type: string): Condition | undefined => PROCEDURE_TYPE
 export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: Props) {
   const [patientId, setPatientId] = useState(fixedPatientId ?? '');
   const bundle = usePatientBundle(patientId || undefined);
-  const now = useMemo(nowLocal, []); // default to "now"; both fields stay editable for past records
+  const now = useMemo(() => nowLocal(), []); // default to "now"; both fields stay editable for past records
   const [typeInput, setTypeInput] = useState<ProcedureTypeInput>({ choice: '', other: '' });
   const type = resolveProcedureType(typeInput);
   const [date, setDate] = useState(now.date);

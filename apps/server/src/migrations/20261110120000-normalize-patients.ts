@@ -73,11 +73,11 @@ export async function up(ctx: MigrationContext): Promise<void> {
 
   // ---- backfill from the v1 columns ----
   await ctx.backfill('patients', (row) => legacyPatientPatch(row as never));
-  for (const p of await db.all<Record<string, any>>('SELECT id, address FROM patients')) {
+  for (const p of await db.all<Record<string, unknown>>('SELECT id, address FROM patients')) {
     const address = legacyAddressRow(p as never, now);
     if (address) await ctx.insert('patient_addresses', address);
   }
-  for (const p of await db.all<Record<string, any>>('SELECT id, date, time, paidCents FROM procedures')) {
+  for (const p of await db.all<Record<string, unknown>>('SELECT id, date, time, paidCents FROM procedures')) {
     const payment = legacyPaymentRow(p as never, now);
     if (payment) await ctx.insert('payments', payment);
   }

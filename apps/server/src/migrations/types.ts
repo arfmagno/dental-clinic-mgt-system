@@ -12,7 +12,7 @@ export interface MigrationContext {
    */
   backfill(
     table: string,
-    set: Record<string, unknown> | ((row: Record<string, any>) => Record<string, unknown>),
+    set: Record<string, unknown> | ((row: Record<string, unknown>) => Record<string, unknown>),
     where?: string,
     params?: unknown[],
   ): Promise<number>;

@@ -1,13 +1,14 @@
 import { Fragment, useEffect, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { nameGroup } from '@clinic/shared';
-import { ageOf, formatDate, formatMoney } from '../domain/format';
+import { ageOf, formatDate, formatMoney, type PatientSummary } from '../domain/format';
 import { groupStartPages, pageWindow, paginate } from '../domain/paging';
 import { matchesPatient } from '../domain/search';
 import { usePatientSummaries, useSearchIndex } from '../hooks/useData';
 
 export const PAGE_SIZE = 25;
 const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
+const groupOf = (s: PatientSummary) => nameGroup(s.patient);
 
 /** Patient list: searchable, grouped by last-name initial, paginated (page and query live in the URL). */
 export function Patients() {
@@ -19,7 +20,6 @@ export function Patients() {
   const listTop = useRef<HTMLDivElement>(null);
 
   const shown = useMemo(() => (summaries ?? []).filter((s) => matchesPatient(s.patient, index?.get(s.patient.id) ?? '', q)), [summaries, index, q]);
-  const groupOf = (s: (typeof shown)[number]) => nameGroup(s.patient);
   const starts = useMemo(() => groupStartPages(shown, groupOf, PAGE_SIZE), [shown]);
   const page = paginate(shown, PAGE_SIZE, pageParam);
 
@@ -36,9 +36,11 @@ export function Patients() {
     requestAnimationFrame(() => document.getElementById(`group-${letter}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   };
 
+  // Moving to page 2+ scrolls back to the top of the list (the page number is in the URL).
+  const pageNo = page.page;
   useEffect(() => {
-    if (params.has('page')) listTop.current?.scrollIntoView({ block: 'start' });
-  }, [page.page]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (pageNo > 1) listTop.current?.scrollIntoView({ block: 'start' });
+  }, [pageNo]);
 
   return (
     <div className="stack">

@@ -3,6 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { useSync } from '../hooks/useSync';
 import { disconnectFromServer } from '../services/session';
 
+type ChipInput = Pick<ReturnType<typeof useSync>, 'offlineMode' | 'pending' | 'online' | 'hasToken' | 'status'>;
+
+/** Colour tone and text of the chip, most important condition first. */
+function chipState(s: ChipInput): [tone: string, label: string] {
+  if (s.offlineMode) return ['off', s.pending ? `Offline · ${s.pending} unsynced` : 'Offline'];
+  if (!s.online) return ['warn', 'No connection'];
+  if (!s.hasToken) return ['warn', 'Connect to sync'];
+  if (s.status === 'syncing') return ['busy', 'Syncing…'];
+  if (s.status === 'error') return ['bad', 'Sync problem'];
+  if (s.pending > 0) return ['busy', `${s.pending} to sync`];
+  return ['ok', 'Synced'];
+}
+
 /**
  * Connection/sync state. Offline is the default; switching sync on asks to connect to the
  * clinic server the first time.
@@ -22,14 +35,7 @@ export function SyncChip() {
     return () => (document.removeEventListener('mousedown', close), document.removeEventListener('keydown', esc));
   }, [open]);
 
-  let tone = 'ok';
-  let label = 'Synced';
-  if (s.offlineMode) (tone = 'off'), (label = s.pending ? `Offline · ${s.pending} unsynced` : 'Offline');
-  else if (!s.online) (tone = 'warn'), (label = 'No connection');
-  else if (!s.hasToken) (tone = 'warn'), (label = 'Connect to sync');
-  else if (s.status === 'syncing') (tone = 'busy'), (label = 'Syncing…');
-  else if (s.status === 'error') (tone = 'bad'), (label = 'Sync problem');
-  else if (s.pending > 0) (tone = 'busy'), (label = `${s.pending} to sync`);
+  const [tone, label] = chipState(s);
 
   function toggleSync(on: boolean) {
     if (!on) return s.setOfflineMode(true);

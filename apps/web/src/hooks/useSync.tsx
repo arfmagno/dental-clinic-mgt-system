@@ -101,6 +101,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   // Sync on start / reconnect / switching back online, and every 30 s while enabled.
   useEffect(() => {
     if (!enabled) return;
+    // Syncing is the external system this effect exists for; its status updates are intended.
+    // oxlint-disable-next-line react/set-state-in-effect
     void syncNow();
     const t = setInterval(() => void syncNow(), 30_000);
     return () => clearInterval(t);

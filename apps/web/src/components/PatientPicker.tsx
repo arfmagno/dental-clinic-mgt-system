@@ -71,10 +71,19 @@ export function PatientPicker({ value, onChange, autoFocus }: Props) {
         onFocus={() => setOpen(true)}
         onClick={() => setOpen(true)}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') setOpen(false);
-          else if (e.key === 'ArrowDown') (e.preventDefault(), setOpen(true), setActive((a) => Math.min(a + 1, results.length - 1)));
-          else if (e.key === 'ArrowUp') (e.preventDefault(), setActive((a) => Math.max(a - 1, 0)));
-          else if (e.key === 'Enter' && open && results[active]) (e.preventDefault(), pick(results[active].patient.id));
+          if (e.key === 'Escape') {
+            setOpen(false);
+          } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setOpen(true);
+            setActive((a) => Math.min(a + 1, results.length - 1));
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActive((a) => Math.max(a - 1, 0));
+          } else if (e.key === 'Enter' && open && results[active]) {
+            e.preventDefault();
+            pick(results[active].patient.id);
+          }
         }}
       />
       {open && (

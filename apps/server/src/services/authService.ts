@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { TokenSigner } from '../infra/auth/tokens.js';
+import type { TokenSigner } from '../infra/auth/tokens.js';
 
 // ---------- Authorization model ----------
 // Authorization is permission-based; roles are just named bundles of permissions.

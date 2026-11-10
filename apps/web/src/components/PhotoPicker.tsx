@@ -19,7 +19,8 @@ export function PhotoPicker({ value, onChange }: Props) {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   };
-  useEffect(() => stop, []);
+  // Release the camera when the picker unmounts.
+  useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), []);
 
   async function accept(blob: Blob) {
     setBusy(true);

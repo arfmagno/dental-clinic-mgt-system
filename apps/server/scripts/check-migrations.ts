@@ -5,7 +5,7 @@ import { MIGRATIONS_DIR, MIGRATION_FILE, checkMigrationFiles } from '../src/migr
 
 const files = (await readdir(MIGRATIONS_DIR)).sort();
 const problems = checkMigrationFiles(files);
-for (const f of files.filter((f) => MIGRATION_FILE.exec(f)?.[3] === 'sql')) {
+for (const f of files.filter((name) => MIGRATION_FILE.exec(name)?.[3] === 'sql')) {
   const sql = (await readFile(path.join(MIGRATIONS_DIR, f), 'utf8')).replace(/--.*$/gm, '').trim();
   if (!sql) problems.push({ file: f, problem: 'contains no SQL statements' });
 }

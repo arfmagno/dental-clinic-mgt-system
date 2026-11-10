@@ -29,7 +29,7 @@ export async function syncOnce(token: string): Promise<SyncOutcome> {
   const outcome: SyncOutcome = { pushed: 0, pulled: 0, rejected: 0 };
 
   // ---- push (parents before children, in batches) ----
-  const queue: { table: SyncTable; row: Record<string, any> }[] = [];
+  const queue: { table: SyncTable; row: AnyRow & { dirty?: unknown } }[] = [];
   for (const t of SYNC_TABLES) for (const row of await table(t).where('dirty').equals(1).toArray()) queue.push({ table: t, row });
 
   for (let i = 0; i < queue.length; i += BATCH) {
