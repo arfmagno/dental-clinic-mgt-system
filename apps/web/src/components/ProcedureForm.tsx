@@ -2,9 +2,10 @@ import { useMemo, useState, type FormEvent } from 'react';
 import {
   CONDITIONS,
   CONDITION_LABEL,
-  PAYMENT_METHODS,
+  PAYMENT_METHODS_OFFERED,
   PAYMENT_METHOD_LABEL,
   PROCEDURE_TYPES,
+  OTHER_PROCEDURE,
   dentitionOf,
   toCents,
   toothInfo,
@@ -14,6 +15,8 @@ import {
 } from '@clinic/shared';
 import { buildChart, type ToothState } from '../domain/chart';
 import { nowLocal } from '../domain/format';
+import { resolveProcedureType, type ProcedureTypeInput } from '../domain/procedureType';
+import { ProcedureTypeField } from './ProcedureTypeField';
 import { usePatientBundle } from '../hooks/useData';
 import { createProcedure } from '../services/procedureService';
 import { ConditionLegend, Odontogram } from './Odontogram';
@@ -38,7 +41,8 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
   const [patientId, setPatientId] = useState(fixedPatientId ?? '');
   const bundle = usePatientBundle(patientId || undefined);
   const now = useMemo(nowLocal, []); // default to "now"; both fields stay editable for past records
-  const [type, setType] = useState('');
+  const [typeInput, setTypeInput] = useState<ProcedureTypeInput>({ choice: '', other: '' });
+  const type = resolveProcedureType(typeInput);
   const [date, setDate] = useState(now.date);
   const [time, setTime] = useState(now.time);
   const [cost, setCost] = useState('');
@@ -69,15 +73,16 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
     });
   }
 
-  function changeType(v: string) {
-    setType(v);
-    const c = defaultCondition(v);
+  function changeType(v: ProcedureTypeInput) {
+    setTypeInput(v);
+    const c = v.choice === OTHER_PROCEDURE ? undefined : defaultCondition(v.choice);
     if (c) setPicks((prev) => new Map([...prev].map(([t, p]) => [t, p.touched ? p : { ...p, condition: c }])));
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!patientId) return setError('Choose a patient first.');
+    if (!type) return setError(typeInput.choice === OTHER_PROCEDURE ? 'Type the procedure.' : 'Choose the type of procedure.');
     setSaving(true);
     setError('');
     try {
@@ -108,13 +113,7 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
       )}
 
       <div className="grid2">
-        <label className="field">
-          <span>Type of procedure *</span>
-          <input required list="procedure-types" value={type} onChange={(e) => changeType(e.target.value)} placeholder="e.g. Filling" />
-          <datalist id="procedure-types">
-            {PROCEDURE_TYPES.map((t) => <option key={t.name} value={t.name} />)}
-          </datalist>
-        </label>
+        <ProcedureTypeField value={typeInput} onChange={changeType} />
         <div className="grid2 tight-grid">
           <label className="field">
             <span>Date *</span>
@@ -143,7 +142,7 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
         <label className="field">
           <span>Payment method</span>
           <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} disabled={!(toCents(paidNow) > 0)}>
-            {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{PAYMENT_METHOD_LABEL[m]}</option>)}
+            {PAYMENT_METHODS_OFFERED.map((m) => <option key={m} value={m}>{PAYMENT_METHOD_LABEL[m]}</option>)}
           </select>
         </label>
       </div>

@@ -6,6 +6,8 @@ import { Modal } from '../components/Modal';
 import { PatientForm } from '../components/PatientForm';
 import { PaymentForm } from '../components/PaymentForm';
 import { ProcedureForm } from '../components/ProcedureForm';
+import { ProcedureTypeField } from '../components/ProcedureTypeField';
+import { resolveProcedureType, splitProcedureType } from '../domain/procedureType';
 import { buildChart, type ToothState } from '../domain/chart';
 import { ageOf, formalName, formatAddress, formatDate, formatMoney, formatTime } from '../domain/format';
 import { usePatientBundle } from '../hooks/useData';
@@ -247,7 +249,8 @@ export function PatientDetail() {
 }
 
 function EditProcedure({ procedure: p, onDone }: { procedure: Procedure; onDone(): void }) {
-  const [type, setType] = useState(p.type);
+  const [typeInput, setTypeInput] = useState(() => splitProcedureType(p.type));
+  const type = resolveProcedureType(typeInput);
   const [date, setDate] = useState(p.date);
   const [time, setTime] = useState(p.time);
   const [cost, setCost] = useState(String(p.costCents / 100));
@@ -257,6 +260,7 @@ function EditProcedure({ procedure: p, onDone }: { procedure: Procedure; onDone(
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (!type) return setError('Type the procedure.');
     setSaving(true);
     try {
       await updateProcedure(p.id, { type, date, time, costCents: toCents(cost), remarks });
@@ -268,7 +272,7 @@ function EditProcedure({ procedure: p, onDone }: { procedure: Procedure; onDone(
   }
   return (
     <form className="stack form" onSubmit={submit}>
-      <label className="field"><span>Type of procedure</span><input required value={type} onChange={(e) => setType(e.target.value)} /></label>
+      <ProcedureTypeField value={typeInput} onChange={setTypeInput} />
       <div className="grid2">
         <label className="field"><span>Date</span><input required type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
         <label className="field"><span>Time</span><input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>

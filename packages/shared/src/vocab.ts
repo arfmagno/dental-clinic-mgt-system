@@ -52,6 +52,9 @@ export const PROCEDURE_TYPES: { name: string; condition?: Condition }[] = [
   { name: 'Other' },
 ];
 
+/** Choosing this procedure type asks for the actual type in a text box; the typed text is stored. */
+export const OTHER_PROCEDURE = 'Other';
+
 // ---------- Small fixed vocabularies (stored as validated codes, not lookup tables) ----------
 export const SALUTATIONS = ['Mr.', 'Ms.', 'Mrs.', 'Mx.', 'Dr.', 'Atty.', 'Engr.', 'Prof.'] as const;
 export const CIVIL_STATUSES = ['Single', 'Married', 'Widowed', 'Separated', 'Divorced'] as const;
@@ -59,6 +62,11 @@ export const CONTACT_TYPES = ['phone', 'email', 'messenger', 'other'] as const;
 export type ContactType = (typeof CONTACT_TYPES)[number];
 export const PAYMENT_METHODS = ['cash', 'card', 'e_wallet', 'bank_transfer', 'hmo', 'other'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+/**
+ * Methods offered in the forms. Card and HMO are hidden until card terminals and HMO accreditation
+ * are set up; they stay valid values so old records and future re-enabling need no migration.
+ */
+export const PAYMENT_METHODS_OFFERED: readonly PaymentMethod[] = ['cash', 'e_wallet', 'bank_transfer', 'other'];
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: 'Cash',
   card: 'Card',

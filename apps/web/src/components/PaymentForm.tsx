@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { PAYMENT_METHODS, PAYMENT_METHOD_LABEL, toCents, type PaymentMethod } from '@clinic/shared';
+import { PAYMENT_METHODS_OFFERED, PAYMENT_METHOD_LABEL, toCents, type PaymentMethod } from '@clinic/shared';
 import { formatMoney, nowLocal } from '../domain/format';
 import { addPayment } from '../services/procedureService';
 
@@ -44,7 +44,7 @@ export function PaymentForm({ procedureId, balanceCents, onDone }: Props) {
         <label className="field">
           <span>Method</span>
           <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
-            {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{PAYMENT_METHOD_LABEL[m]}</option>)}
+            {PAYMENT_METHODS_OFFERED.map((m) => <option key={m} value={m}>{PAYMENT_METHOD_LABEL[m]}</option>)}
           </select>
         </label>
       </div>
