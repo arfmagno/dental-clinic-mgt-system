@@ -6,3 +6,8 @@ dist
 *.db
 *.db-*
 .env
+
+# test output
+/e2e/.data
+/e2e/.report
+/e2e/.results
