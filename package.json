@@ -12,7 +12,7 @@
     "build": "npm run build -w @clinic/web",
     "start": "npm run start -w @clinic/server",
     "typecheck": "npm run typecheck -w @clinic/shared && npm run typecheck -w @clinic/server && npm run typecheck -w @clinic/web",
-    "test": "npm run test -w @clinic/server"
+    "test": "npm run test -w @clinic/server && npm run test -w @clinic/web"
   },
   "devDependencies": {
     "concurrently": "^9.2.5"
