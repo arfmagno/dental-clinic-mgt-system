@@ -55,6 +55,22 @@ export const PROCEDURE_TYPES: { name: string; condition?: Condition }[] = [
 /** Choosing this procedure type asks for the actual type in a text box; the typed text is stored. */
 export const OTHER_PROCEDURE = 'Other';
 
+// ---------- Dental classification ----------
+/**
+ * Which chart a patient uses, by dentition (not by age or tooth count alone):
+ *  primary   – only baby teeth (pediatric chart, FDI 51–85)
+ *  mixed     – baby and permanent teeth together (both charts)
+ *  permanent – only permanent teeth (adult chart, FDI 11–48)
+ * Chosen by the dentist; when not chosen ('') the app suggests one from the patient's age.
+ */
+export const DENTAL_CLASSIFICATIONS = ['primary', 'mixed', 'permanent'] as const;
+export type DentalClassification = (typeof DENTAL_CLASSIFICATIONS)[number];
+export const DENTAL_CLASSIFICATION_LABEL: Record<DentalClassification, string> = {
+  primary: 'Pediatric (primary teeth)',
+  mixed: 'Mixed dentition',
+  permanent: 'Adult (permanent teeth)',
+};
+
 // ---------- Small fixed vocabularies (stored as validated codes, not lookup tables) ----------
 export const SALUTATIONS = ['Mr.', 'Ms.', 'Mrs.', 'Mx.', 'Dr.', 'Atty.', 'Engr.', 'Prof.'] as const;
 export const CIVIL_STATUSES = ['Single', 'Married', 'Widowed', 'Separated', 'Divorced'] as const;

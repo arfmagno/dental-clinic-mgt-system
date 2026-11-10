@@ -15,14 +15,16 @@ const iso = () => new Date().toISOString();
 const V1 = '20261110090000';
 const V2 = '20261110120000';
 const V3 = '20261111090000';
+const V4 = '20261111090001'; // dental-classification
 const upTo = async (version: string) => (await loadMigrations()).filter((m) => m.version <= version);
 
 // ---------------- files, names and the generator (unit) ----------------
 test('migration files in the repo are well named, unique and load', async () => {
   assert.deepEqual(checkMigrationFiles(await readdir(MIGRATIONS_DIR)), []);
   const list = await loadMigrations();
-  assert.deepEqual(list.map((m) => m.version), [V1, V2, V3]);
-  assert.deepEqual(list.map((m) => m.file?.split('.').pop()), ['sql', 'ts', 'ts']);
+  assert.deepEqual(list.map((m) => m.version), [V1, V2, V3, V4]);
+  assert.deepEqual(list.map((m) => m.file?.split('.').pop()), ['sql', 'ts', 'ts', 'sql']);
+  assert.equal(list[3].name, 'dental classification');
   assert.equal(list[2].name, 'single address');
 });
 
@@ -72,8 +74,19 @@ test('loader runs .sql and .ts files from a folder, in version order', async () 
 // ---------------- runner (integration, real SQLite) ----------------
 test('migrations apply once and are idempotent', async () => {
   const db = openDriver('sqlite::memory:');
-  assert.deepEqual(await migrate(db), [V1, V2, V3]);
+  assert.deepEqual(await migrate(db), [V1, V2, V3, V4]);
   assert.deepEqual(await migrate(db), []);
+});
+
+test('dental-classification: patients get the column, empty (= suggest from age) by default', async () => {
+  const db = openDriver('sqlite::memory:');
+  await migrate(db, { migrations: await upTo(V3) });
+  await db.run(
+    `INSERT INTO patients (id, createdAt, updatedAt, isDeleted, serverSeq, salutation, firstName, middleName, lastName, birthDate, occupation, civilStatus, citizenshipCode, addressLine1, addressCountryCode, photo, remarks)
+     VALUES ('p1', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 0, 1, '', 'Ana', '', 'Reyes', '2019-01-01', '', '', 'PH', '', '', '', '')`,
+  );
+  assert.deepEqual(await migrate(db), [V4]);
+  assert.deepEqual(await db.get('SELECT dentalClassification FROM patients'), { dentalClassification: '' });
 });
 
 test('databases from before timestamped names (integer ids) are recognised', async () => {
@@ -83,8 +96,8 @@ test('databases from before timestamped names (integer ids) are recognised', asy
   await db.exec(`DROP TABLE _migrations;
     CREATE TABLE _migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, appliedAt TEXT NOT NULL);
     INSERT INTO _migrations VALUES (1, 'initial schema', '2026-11-10T00:00:00Z'), (2, 'normalise', '2026-11-10T00:00:00Z');`);
-  assert.deepEqual(await migrate(db), [V3], 'only the new migration runs');
-  assert.deepEqual((await db.all<{ version: string }>('SELECT version FROM _migrations ORDER BY version')).map((r) => r.version), [V1, V2, V3]);
+  assert.deepEqual(await migrate(db), [V3, V4], 'only the new migrations run');
+  assert.deepEqual((await db.all<{ version: string }>('SELECT version FROM _migrations ORDER BY version')).map((r) => r.version), [V1, V2, V3, V4]);
 });
 
 test('a migration older than one already applied is refused', async () => {
@@ -128,7 +141,7 @@ test('a failing migration rolls back completely and is not recorded', async () =
   };
   await assert.rejects(migrate(db, { migrations: [...(await loadMigrations()), bad] }), /boom/);
   assert.equal(await db.get("SELECT name FROM sqlite_master WHERE name = 'half_done'"), undefined);
-  assert.equal((await db.all('SELECT version FROM _migrations')).length, 3);
+  assert.equal((await db.all('SELECT version FROM _migrations')).length, 4);
 });
 
 test('normalize-patients (v1 → v2): names, citizenship, addresses, payments, tooth FK', async () => {
@@ -196,7 +209,7 @@ test('single-address (v2 → v3): primary address folded into the patient, table
   await addr('a3', 'p2', 'Gone St', 1, 1); // deleted only → no address
   await db.exec("UPDATE sync_meta SET value = 2 WHERE key = 'seq'");
 
-  assert.deepEqual(await migrate(db), [V3]);
+  assert.deepEqual(await migrate(db), [V3, V4]);
   const rows = await db.all<Record<string, any>>('SELECT id, addressLine1, addressCountryCode, serverSeq FROM patients ORDER BY id');
   assert.deepEqual(rows.map((r) => [r.addressLine1, r.addressCountryCode]), [
     ['Tokyo, Brgy. 1, Quezon City, Metro Manila 1100', 'JP'],

@@ -21,7 +21,10 @@ import {
   type Payment,
   type Procedure,
   type ToothEntry,
+  chartsFor,
+  suggestDentalClassification,
 } from '@clinic/shared';
+import { classificationOf } from './classification.js';
 import { buildChart } from './chart.js';
 import { ageOf, formatAddress, recordedAtOf, summarize } from './format.js';
 import { groupStartPages, pageWindow, paginate } from './paging.js';
@@ -214,4 +217,27 @@ test('validation: vocabularies, money and teeth are enforced', () => {
   assert.equal(isValidTooth(18), true);
   assert.equal(isValidTooth(19), false);
   assert.equal(isValidTooth(55), true);
+});
+
+test('dental classification: suggested from age until the dentist chooses; charts per classification', () => {
+  const today = new Date('2026-11-11T12:00');
+  assert.equal(suggestDentalClassification(null), 'permanent');
+  assert.equal(suggestDentalClassification(3), 'primary');
+  assert.equal(suggestDentalClassification(5), 'primary');
+  assert.equal(suggestDentalClassification(6), 'mixed');
+  assert.equal(suggestDentalClassification(12), 'mixed');
+  assert.equal(suggestDentalClassification(13), 'permanent');
+
+  assert.deepEqual(classificationOf({ birthDate: '2022-01-01', dentalClassification: '' }, today), { value: 'primary', suggested: true });
+  assert.deepEqual(classificationOf({ birthDate: '2022-01-01' }, today), { value: 'primary', suggested: true }); // rows from before 0.4.0
+  assert.deepEqual(classificationOf({ birthDate: '2022-01-01', dentalClassification: 'mixed' }, today), { value: 'mixed', suggested: false });
+  assert.deepEqual(classificationOf({ birthDate: '', dentalClassification: '' }, today), { value: 'permanent', suggested: true });
+
+  assert.deepEqual(chartsFor('primary'), ['primary']);
+  assert.deepEqual(chartsFor('mixed'), ['primary', 'permanent']);
+  assert.deepEqual(chartsFor('permanent'), ['permanent']);
+
+  assert.equal(validateColumns('patients', { dentalClassification: 'mixed' }), null);
+  assert.equal(validateColumns('patients', { dentalClassification: '' }), null);
+  assert.equal(validateColumns('patients', { dentalClassification: 'baby' }), 'invalid dentalClassification');
 });

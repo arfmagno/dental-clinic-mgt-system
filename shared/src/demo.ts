@@ -105,6 +105,7 @@ export function buildDemoData(opts: DemoOptions = {}): Record<SyncTable, AnyRow[
       addressCountryCode: foreign ? foreign[0] : 'PH',
       photo: '',
       remarks: r() < 0.12 ? pick(['Allergic to penicillin', 'Hypertensive; check BP before procedures', 'Prefers afternoon appointments', 'Anxious patient']) : '',
+      dentalClassification: child ? 'mixed' : 'permanent', // children here are 6–11: baby and permanent teeth
     });
 
     // contacts: a primary phone, sometimes an email or Messenger

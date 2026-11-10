@@ -8,7 +8,7 @@ import {
   SHAPE_H,
   SHAPE_W,
   nationalityOf,
-  dentitionOf,
+  chartsFor,
   flattenPath,
   formatName,
   toothLayout,
@@ -18,6 +18,7 @@ import {
   type ToothBox,
 } from '@clinic/shared';
 import { buildChart } from '../domain/chart';
+import { classificationOf } from '../domain/classification';
 import { ageOf, formalName, formatAddress, formatDate, formatTime } from '../domain/format';
 import type { PatientBundle } from '../hooks/useData';
 
@@ -172,8 +173,8 @@ export async function exportPatientPdf(bundle: PatientBundle, clinicName = 'Dent
 
   // ---- dental chart ----
   const chart = buildChart(records, entries);
-  const usesPrimary = [...chart.keys()].some((t) => dentitionOf(t) === 'primary');
-  const dentitions: Dentition[] = usesPrimary ? ['permanent', 'primary'] : ['permanent'];
+  // Only the chart(s) for the patient's dental classification, like the screen.
+  const dentitions: Dentition[] = chartsFor(classificationOf(bundle.patient).value);
   const scaleOf = (d: Dentition) => Math.min((W - 2 * M) / toothLayout(d).width, 0.5);
   if (y + toothLayout('permanent').height * scaleOf('permanent') + 20 > 285) {
     doc.addPage();

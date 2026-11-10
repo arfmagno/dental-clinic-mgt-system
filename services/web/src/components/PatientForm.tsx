@@ -1,6 +1,13 @@
 import { useState, type FormEvent } from 'react';
-import { CIVIL_STATUSES, SALUTATIONS } from '@clinic/shared';
-import { nowLocal } from '../domain/format';
+import {
+  CIVIL_STATUSES,
+  DENTAL_CLASSIFICATIONS,
+  DENTAL_CLASSIFICATION_LABEL,
+  SALUTATIONS,
+  suggestDentalClassification,
+  type DentalClassification,
+} from '@clinic/shared';
+import { ageOf, nowLocal } from '../domain/format';
 import { emptyContact, validatePatient, type ContactInput, type PatientFields } from '../services/patientService';
 import { ContactsEditor } from './ContactsEditor';
 import { CountrySelect } from './CountrySelect';
@@ -86,10 +93,21 @@ export function PatientForm({ initial, initialContacts, submitLabel, savingLabel
         </label>
       </div>
 
-      <label className="field">
-        <span>Occupation</span>
-        <input autoComplete="organization-title" value={f.occupation} onChange={(e) => set('occupation', e.target.value)} />
-      </label>
+      <div className={variant === 'staff' ? 'grid2' : undefined}>
+        <label className="field">
+          <span>Occupation</span>
+          <input autoComplete="organization-title" value={f.occupation} onChange={(e) => set('occupation', e.target.value)} />
+        </label>
+        {variant === 'staff' && (
+          <label className="field">
+            <span>Dental classification</span>
+            <select value={f.dentalClassification ?? ''} onChange={(e) => set('dentalClassification', e.target.value as DentalClassification | '')}>
+              <option value="">By age: {DENTAL_CLASSIFICATION_LABEL[suggestDentalClassification(ageOf(f.birthDate))]}</option>
+              {DENTAL_CLASSIFICATIONS.map((c) => <option key={c} value={c}>{DENTAL_CLASSIFICATION_LABEL[c]}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
 
       <div className="field">
         <span>Contact information</span>
@@ -120,7 +138,7 @@ export function PatientForm({ initial, initialContacts, submitLabel, savingLabel
       )}
 
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="row form-actions">
+      <div className="form-actions">
         <button className="btn primary" disabled={saving}>{saving ? savingLabel : submitLabel}</button>
         <button type="button" className="btn" onClick={onCancel} disabled={saving}>{cancelLabel}</button>
       </div>

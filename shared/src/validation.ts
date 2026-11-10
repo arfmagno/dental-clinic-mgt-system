@@ -1,6 +1,6 @@
 // Column rules the server enforces on every synced row (the client's forms enforce the same).
 // Small fixed vocabularies are validated codes rather than lookup tables.
-import { CIVIL_STATUSES, CONDITIONS, CONTACT_TYPES, PAYMENT_METHODS, SALUTATIONS } from './vocab.js';
+import { CIVIL_STATUSES, CONDITIONS, CONTACT_TYPES, DENTAL_CLASSIFICATIONS, PAYMENT_METHODS, SALUTATIONS } from './vocab.js';
 import type { SyncTable } from './index.js';
 import { isCountryCode } from './countries.js';
 import { isValidTooth } from './teeth.js';
@@ -22,6 +22,7 @@ const RULES: Partial<Record<SyncTable, Record<string, Rule>>> = {
     citizenshipCode: isCountryCode,
     birthDate: isDate,
     addressCountryCode: isCountryCode,
+    dentalClassification: oneOf(DENTAL_CLASSIFICATIONS, true),
   },
   patient_contacts: { type: oneOf(CONTACT_TYPES) },
   procedures: { date: isRequiredDate, time: isTime, costCents: isNonNegInt },

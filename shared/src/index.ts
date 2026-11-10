@@ -8,7 +8,7 @@ export * from './legacy-v3.js';
 export * from './nationalities.js';
 export * from './vocab.js';
 export * from './demo.js';
-import type { Condition, ContactType, PaymentMethod } from './vocab.js';
+import type { Condition, ContactType, DentalClassification, PaymentMethod } from './vocab.js';
 
 // ---------- Rows ----------
 export interface BaseRow {
@@ -32,6 +32,8 @@ export interface Patient extends BaseRow {
   addressCountryCode: string; // ISO 3166-1 alpha-2, or '' when there is no address
   photo: string; // compressed data URL or ''
   remarks: string;
+  /** Which dental chart applies (see vocab.ts); '' = not chosen, suggested from age. Absent on rows created before the field existed. */
+  dentalClassification?: DentalClassification | '';
 }
 
 export interface PatientContact extends BaseRow {
@@ -92,7 +94,7 @@ export type SyncTable = (typeof SYNC_TABLES)[number];
 
 export const BASE_COLUMNS = ['id', 'createdAt', 'updatedAt', 'isDeleted'] as const;
 export const TABLE_COLUMNS: Record<SyncTable, readonly string[]> = {
-  patients: ['salutation', 'firstName', 'middleName', 'lastName', 'birthDate', 'occupation', 'civilStatus', 'citizenshipCode', 'addressLine1', 'addressCountryCode', 'photo', 'remarks'],
+  patients: ['salutation', 'firstName', 'middleName', 'lastName', 'birthDate', 'occupation', 'civilStatus', 'citizenshipCode', 'addressLine1', 'addressCountryCode', 'photo', 'remarks', 'dentalClassification'],
   patient_contacts: ['patientId', 'type', 'value', 'label', 'isPrimary'],
   procedures: ['patientId', 'type', 'date', 'time', 'costCents', 'remarks'],
   payments: ['procedureId', 'amountCents', 'paidAt', 'method', 'remarks'],

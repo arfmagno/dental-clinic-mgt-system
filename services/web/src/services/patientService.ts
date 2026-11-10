@@ -1,4 +1,4 @@
-import { DEFAULT_CITIZENSHIP, DEFAULT_COUNTRY, type ContactType, type Patient } from '@clinic/shared';
+import { DEFAULT_CITIZENSHIP, DEFAULT_COUNTRY, DENTAL_CLASSIFICATIONS, type ContactType, type Patient } from '@clinic/shared';
 import type { Table } from 'dexie';
 import { db, type Local } from '../data/db';
 import { createRow, softDeleteRow, updateRow } from '../data/repository';
@@ -26,6 +26,7 @@ export const emptyPatient = (): PatientFields => ({
   addressCountryCode: DEFAULT_COUNTRY,
   photo: '',
   remarks: '',
+  dentalClassification: '', // '' = suggest from age until the dentist chooses
 });
 
 export const emptyContact = (isPrimary: boolean): ContactInput => ({ type: 'phone', value: '', label: '', isPrimary });
@@ -52,6 +53,7 @@ export function validatePatient(f: PatientFields): string | null {
   if (f.birthDate > todayLocal()) return 'Date of birth cannot be in the future';
   if (f.birthDate < '1900-01-01') return 'Check the date of birth';
   if (!f.citizenshipCode) return 'Citizenship is required';
+  if (f.dentalClassification && !DENTAL_CLASSIFICATIONS.includes(f.dentalClassification)) return 'Choose a dental classification';
   return null;
 }
 
@@ -90,6 +92,7 @@ export async function savePatient(id: string | undefined, fields: PatientFields,
     // a country without an address line says nothing; keep it only when there is an address
     addressCountryCode: fields.addressLine1.trim() ? fields.addressCountryCode : '',
     remarks: fields.remarks.trim(),
+    dentalClassification: fields.dentalClassification ?? '',
   };
   const problem = validatePatient(clean);
   if (problem) throw new Error(problem);

@@ -1,6 +1,8 @@
 // FDI tooth catalog, chart layout geometry and anatomical tooth outlines.
 // Used by the on-screen chart, the PDF export and (catalog) the server's `teeth` table.
 
+import type { DentalClassification } from './vocab.js';
+
 export type Dentition = 'permanent' | 'primary';
 export type ToothKind = 'molar' | 'premolar' | 'canine' | 'incisor';
 
@@ -64,6 +66,24 @@ export const TOOTH_CATALOG: readonly ToothInfo[] = (['permanent', 'primary'] as 
 const BY_NUMBER = new Map(TOOTH_CATALOG.map((t) => [t.number, t]));
 export const toothInfo = (n: number) => BY_NUMBER.get(n);
 export const isValidTooth = (n: unknown) => typeof n === 'number' && BY_NUMBER.has(n);
+
+// ---------- Dental classification ----------
+
+/** The charts shown for a classification. Mixed dentition shows both arches' primary and permanent teeth. */
+export function chartsFor(c: DentalClassification): Dentition[] {
+  return c === 'primary' ? ['primary'] : c === 'mixed' ? ['primary', 'permanent'] : ['permanent'];
+}
+
+/**
+ * A starting suggestion from age only (primary until 6, mixed 6–12, permanent from 13). The dentist
+ * confirms or overrides it, since eruption varies and teeth can be missing or retained.
+ */
+export function suggestDentalClassification(age: number | null): DentalClassification {
+  if (age === null) return 'permanent';
+  if (age < 6) return 'primary';
+  if (age < 13) return 'mixed';
+  return 'permanent';
+}
 
 // ---------- Anatomical outlines ----------
 // Drawn in a 30 × 64 box for an UPPER tooth: roots at the top (y 0–30), crown below (y 30–64).
