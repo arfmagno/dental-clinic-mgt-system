@@ -13,8 +13,8 @@ All configuration is environment-based; nothing else reads `process.env`.
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `NODE_ENV` | `development` | Set `production` when hosted. Production **refuses to start** without the two secrets below. |
-| `CLINIC_PASSWORD` | `clinic` (dev only) | The sign-in password. Required in production. |
-| `AUTH_SECRET` | dev value | Signs session tokens; 24+ random characters; required in production. Changing it signs everyone out. |
+| `CLINIC_PASSWORD` | `clinic` (dev only) | The clinic server password: entered on a device when sync is switched on (and to reset a forgotten staff PIN). Required in production. |
+| `AUTH_SECRET` | dev value | Signs session tokens; 24+ random characters; required in production. Changing it disconnects every device from sync (they keep working offline until reconnected). |
 | `DATABASE_URL` | `sqlite:<DATA_DIR>/clinic.db` | `sqlite:` today; `postgres://` is reserved (see Architecture). |
 | `DATA_DIR` | `data` | Folder for the database. **Put this on a persistent volume.** |
 | `BACKUP_DIR` | `<DATA_DIR>/backups` | Pre-migration snapshots. |
@@ -22,7 +22,7 @@ All configuration is environment-based; nothing else reads `process.env`.
 | `WEB_DIR` | `../web/dist` | Built web app to serve. Empty = API only. |
 | `TRUST_PROXY` | `false` | Set `true` behind a reverse proxy/PaaS so login throttling sees real client IPs. |
 | `CORS_ORIGIN` | empty | Only if the web app is hosted on a different origin; also build the web app with `VITE_API_URL`. |
-| `TOKEN_TTL_DAYS` | `30` | How long a sign-in lasts before sync asks to sign in again (the app still works offline). |
+| `TOKEN_TTL_DAYS` | `30` | How long a device stays connected for sync before it must enter the server password again (the app keeps working offline). |
 | `LOG_LEVEL` | `info` | |
 
 Generate a secret: `openssl rand -hex 32` (or any password manager).
@@ -50,7 +50,7 @@ Double-click `start-clinic.bat` (Windows, Node.js 20+ installed). It installs an
 
 ## Installing the app on a device
 
-Open the hosted address in Chrome or Edge, sign in once, then **Install**. On Android use *Add to Home screen*; on iPhone/iPad use *Share → Add to Home Screen*. After that it opens offline from its own icon.
+Open the hosted address in Chrome or Edge, create the staff PIN, then **Install**. Switch on sync from the Sync chip to connect the device to the server. On Android use *Add to Home screen*; on iPhone/iPad use *Share → Add to Home Screen*. After that it opens offline from its own icon.
 
 ## Backups
 

@@ -4,6 +4,39 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
+### Added
+- **Add patient page** (`/patients/new`) for staff, separate from the patient list.
+- **Staff PIN** (4–6 digits, PBKDF2-hashed on the device, back-off after 5 wrong tries) created on first launch. It opens the app and unlocks it; no server needed. *Forgot PIN* resets it with the clinic server password.
+- **Lock button:** *Hand to patient* (isolated registration form that survives reloads; staff PIN to leave) and *Lock app*.
+- **Light / dark / match-device** appearance switch, remembered per device.
+- **Structured addresses** (`patient_addresses`): label, street, barangay/district, city, province, postal code, country; any number per patient, one primary.
+- **Itemised payments** (`payments`): amount, method (cash, card, e-wallet, bank transfer, HMO, other), date/time, remarks; record and remove from the patient page; first payment can be entered with the procedure.
+- **Tooth catalog** (`teeth`, server reference table) with FDI names; `tooth_entries.tooth` references it.
+- **Patients list:** grouped by last-name initial with an A–Z jump bar; 25 per page with a pager; search also matches address text and ignores accents.
+- Salutation (Mr., Ms., Mrs., Mx., Dr., Atty., Engr., Prof.) and citizenship country dropdown.
+- Shared column validation (`validateColumns`) enforced by the server on sync.
+- Migration 002 and on-device database version 2, sharing frozen transforms with deterministic ids (no duplicates when an offline device syncs after upgrading).
+- Tests: 14 server, 17 web (names, paging, legacy transforms, validation); 63-check end-to-end run in Edge.
+
+### Changed
+- **Teeth are drawn anatomically** (crown and roots by tooth type; lower arch mirrored) with conditions drawn on the tooth; the PDF uses the same outlines.
+- **Names are stored as first / middle / last (+ salutation);** the full name is derived. First and last name are required.
+- **Offline is the default.** Sync is opt-in from the Sync chip and asks for the server password once.
+- **Patients are no longer isolated by default.** The patient-facing form appears only through the Lock button.
+- Buttons describe their action (*Add patient*, *Register*, *Add procedure*, *Record payment*, *Save changes*) and every form has *Cancel*.
+- Contacts have a single **primary** marker; primary contact and address are listed first.
+- Citizenship is stored as an ISO country code.
+- Balances are `cost − Σ payments`.
+
+### Removed
+- `patients.fullName`, `patients.address`, `patients.citizenship`, `procedures.paidCents` (data moved by migration 002).
+- The sign-in page and the always-isolated `/intake` route.
+
+### Fixed
+- Add procedure: the patient list ("No patients yet…") no longer stays open; it closes on outside click, Escape, blur and after picking.
+
 ## [0.1.0] - 2026-11-10
 
 First working version.

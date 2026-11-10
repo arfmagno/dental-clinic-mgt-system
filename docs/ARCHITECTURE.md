@@ -50,21 +50,32 @@ Each layer depends only on the one below it, and only through a narrow interface
 
 ### Shared (`packages/shared`)
 
-Types, condition list, FDI tooth layout geometry, and the **sync table definitions** (`SYNC_TABLES`, `TABLE_COLUMNS`). Both sides import it, so they cannot disagree on the wire format.
+Types, vocabularies (`vocab.ts`), the FDI tooth catalog, outlines and layout (`teeth.ts`), name formatting (`names.ts`), countries (`countries.ts`), column validation (`validation.ts`), the frozen v1→v2 data transforms (`legacy.ts`), and the **sync table definitions** (`SYNC_TABLES`, `TABLE_COLUMNS`). Both sides import it, so they cannot disagree on the wire format or on what a valid value is.
 
 ## Data model
 
-Every table carries: `id` (UUID, generated on the device), `createdAt`, `updatedAt`, `isDeleted` (soft delete). The server adds `serverSeq` (sync cursor). Money is stored as integer centavos.
+Every synced table carries: `id` (UUID, generated on the device), `createdAt`, `updatedAt`, `isDeleted` (soft delete). The server adds `serverSeq` (sync cursor). Money is stored as integer centavos.
 
 ```
-patients 1 ──< patient_contacts          (phone | email | messenger | other)
-patients 1 ──< procedures                (type, date, time, costCents, paidCents, remarks)
+patients 1 ──< patient_contacts          (type, value, label, isPrimary)
+patients 1 ──< patient_addresses         (label, street, district, city, province, postalCode, countryCode, isPrimary)
+patients 1 ──< procedures                (type, date, time, costCents, remarks)
+procedures 1 ──< payments                (amountCents, paidAt, method, remarks)
 patients 1 ──< dental_records >── 0..1 procedures     (one dated chart entry; usually from a procedure)
-dental_records 1 ──< tooth_entries       (FDI tooth, condition, remarks; also keyed to patient + procedure)
+dental_records 1 ──< tooth_entries >── teeth           (condition, remarks; also keyed to patient + procedure)
+
+teeth                                    (server-only reference: the 52 FDI teeth, name, kind, quadrant)
 ```
+
+`patients` holds `salutation, firstName, middleName, lastName, birthDate, occupation, civilStatus, citizenshipCode, photo, remarks`. Since 0.2.0 the schema is in third normal form: nothing derivable is stored, and each fact has one home.
 
 Design decisions worth knowing:
 
+- **Names are stored as parts; the full name is derived** (`formatName` in `shared/names.ts`), in whichever form a screen needs ("Ms. Maria Clara Santos", "Santos, Maria C."). Sorting and A–Z grouping use the last name, ignoring case and accents.
+- **Countries are ISO 3166 alpha-2 codes** (`PH`). Names come from the browser (`Intl.DisplayNames`), so there is no country table to maintain.
+- **Small fixed vocabularies are validated codes, not lookup tables.** Salutation, civil status, contact type, address label, payment method and tooth condition are lists in `shared/vocab.ts`, enforced on the server by `validateColumns`. A table would add joins and sync rows without adding information. The tooth catalog is the exception: it is a real reference entity (52 rows with attributes) and `tooth_entries.tooth` has a foreign key to it. Procedure types stay free text until there is a price list (see roadmap).
+- **One primary per list.** Each patient has at most one primary contact and one primary address. The form enforces it; lists show the primary first.
+- **Balances are derived from payments:** `balance = costCents − Σ payments.amountCents`. A procedure can have any number of payments (part payments, different methods).
 - **The chart is derived, not stored.** A patient's current teeth state is "the latest `tooth_entries` per tooth, replaying dental records oldest→newest". That gives full history for free ("view chart at this point"), makes backdated records correct (ordering is by the record's own date/time, not when it was typed), and avoids conflicting writes to a single mutable chart row when two devices sync.
 - **Creating a procedure always creates a dental record** (and its tooth entries) in one local transaction (`services/procedureService.ts`), so chart and history cannot drift apart.
 - **Last visit and outstanding balance are computed** from procedures, never stored, so they cannot go stale.
@@ -83,13 +94,26 @@ Local-first, **last-write-wins per row** (by `updatedAt`).
 - The client marks rows `dirty` on every local write and only clears the flag if the row was not edited again during the push.
 - Safeguards: a device clock more than 10 minutes ahead is clamped; unknown columns are dropped; columns a client omits are left untouched (so an old client cannot wipe a newly added column).
 
-Known limits (accepted for v1): conflicts are whole-row, so two devices editing the same row offline keep only the later edit; sync trusts each device's clock within the clamp. Server-authoritative features (e.g. queue numbers, payments) must **not** use this path; see the roadmap.
+Known limits (accepted for v1): conflicts are whole-row, so two devices editing the same row offline keep only the later edit; sync trusts each device's clock within the clamp. Payments recorded by staff sync like any other row; each payment is its own row, so two devices recording payments offline never overwrite each other. Server-authoritative features (queue numbers, gateway payment confirmations) must **not** use this path; see the roadmap.
+
+**Schema upgrades on devices.** When a release changes the schema, the device's database upgrades itself (Dexie versions) using the **same frozen transforms** as the server migration (`shared/legacy.ts`), and rows created by the upgrade get **deterministic ids** (a hash of the source row id). A device that upgrades offline and the server therefore produce the same rows, and syncing them later merges instead of duplicating.
 
 ## Offline packaging
 
 `vite-plugin-pwa` generates a service worker that precaches every built asset (including the lazily loaded PDF code) plus a web manifest and icons. After the first visit the app opens with no network, and can be installed as a standalone window. `registerType: 'autoUpdate'` applies new versions on next launch. `index.html`, `sw.js` and the manifest are served `no-cache` so updates reach installed copies; hashed assets are `immutable`.
 
-Sign-in is needed once per device ("device ready"). After that the token is only needed to sync; if it expires the app keeps working and asks to sign in again.
+**Opening the app needs no server.** On first launch staff create a **local PIN** (4–6 digits, stored as a salted PBKDF2 hash on the device, with back-off after 5 wrong tries). The PIN opens each new session and is the only way out of *patient mode*. **Sync is off by default**; switching it on asks once for the clinic server password, which returns the sync token. If the token expires or is revoked the app switches back to offline and keeps working. A forgotten PIN is reset by proving the server password (online), and local records are kept.
+
+### Lock stages (`hooks/useLock.tsx`)
+
+| Stage | Shown | Leaves by |
+| --- | --- | --- |
+| `setup` | Create PIN | Creating a PIN |
+| `locked` | PIN screen | Correct PIN |
+| `patient` | Registration form only (no navigation, records or balances); survives reload | Correct PIN ("Staff unlock") |
+| `open` | Full staff app | Lock → *Hand to patient* or *Lock app* |
+
+Patients are **not** isolated by default; staff enter patient mode only with the Lock button.
 
 ## Security model
 
@@ -100,6 +124,7 @@ Sign-in is needed once per device ("device ready"). After that the token is only
 - Login throttling (8 failures / 15 min per client), identical error for every failure cause.
 - Strict JSON-schema input validation, 25 MB body limit, security headers (CSP, `nosniff`, `X-Frame-Options`, HSTS in production, camera-only permissions policy), `Cache-Control: no-store` on API responses, credentials redacted from logs, internal errors never leaked.
 - Production refuses to boot without `CLINIC_PASSWORD` and a 24+ character `AUTH_SECRET`.
+- The **local PIN** is a convenience lock, not encryption: it stops casual access (for example a patient holding the tablet), but someone with the device's browser profile and developer tools could read IndexedDB. It is per device and never sent to the server.
 - **Not covered, by design for now:** data at rest on the device is not encrypted (it relies on the device login); the login throttle is in-memory (single instance); serve over HTTPS (the host or reverse proxy must terminate TLS).
 
 ## Moving to Postgres
@@ -111,11 +136,11 @@ All SQL goes through `SqlDriver` and sticks to portable constructs (`?` placehol
 | Future feature | Hook already in place | What it will need |
 | --- | --- | --- |
 | **Patient portal** (own records, balances) | `Principal` + `Role` incl. `patient`; permission-based guard; token carries `sub`/`role` | A `patient_accounts` table linking a login to a `patientId`; **row-scoped endpoints** (`/me/...`) that filter by the principal's patient. Do not reuse `sync:*`, which is clinic-wide. |
-| **Online payments** | Money in integer centavos; `paidCents` isolated in one place | A `payments` table (`procedureId`, amount, method, provider reference, status). Balance becomes `cost − Σ payments`; a migration **backfills one payment per existing `paidCents`**. Webhooks are server-authoritative, outside LWW sync. |
+| **Online payments** | **Itemised `payments` table exists since 0.2.0** (amount, method, paidAt); balance is already `cost − Σ payments` | Add `providerRef` and `status` columns for gateway payments. Gateway webhooks write payments on the server (server-authoritative), outside LWW sync. |
 | **Appointments / reservations** | UUID ids created anywhere; patient id optional on future rows | `appointments` (patient or guest, start/end, status, procedure type) and clinic hours; slot conflicts must be decided on the server (online-only), not by LWW. |
 | **Cost per procedure shown to patients** | `PROCEDURE_TYPES` already maps type → default condition | Promote to a `procedure_types` table (name, default cost, default condition, active); `procedures.type` stays as a text snapshot. A public read endpoint. |
-| **HMO accreditation** | — | `hmo_providers`, `patient_hmo` (member no., validity), and coverage fields on procedures. |
-| **Maps / directions** | Public route category exists (`auth: 'public'`) | A clinic profile (address, coordinates, hours) and a public `GET /clinic` endpoint. |
+| **HMO accreditation** | Payment method `hmo` already exists | `hmo_providers`, `patient_hmo` (member no., validity), and coverage fields on procedures. |
+| **Maps / directions** | Public route category exists (`auth: 'public'`); patient addresses are structured (city, province, postal code, country) | A clinic profile (address, coordinates, hours) and a public `GET /clinic` endpoint. |
 | **Queueing** | Health/real-time not needed yet | `queue_tickets` with a server-issued counter; online-only, outside LWW sync. |
 | **Reports & analytics** | Money and dates are normalised; derived fields are computable | Server-side aggregate queries behind a `reports:read` permission, or client-side over the local DB for single-device use. |
 | **Multiple clinics** | One config object; migrations with backfill | `clinicId` on every table (migration + backfill), carried in the token, applied in repositories. |
