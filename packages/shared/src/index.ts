@@ -179,7 +179,7 @@ export interface Procedure extends BaseRow {
 export interface DentalRecord extends BaseRow {
   patientId: string;
   procedureId: string | null;
-  recordedAt: string; // YYYY-MM-DD
+  recordedAt: string; // local YYYY-MM-DDTHH:mm (orders same-day entries)
   remarks: string;
 }
 
