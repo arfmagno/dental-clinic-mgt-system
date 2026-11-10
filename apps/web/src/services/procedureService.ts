@@ -1,4 +1,4 @@
-import type { Condition } from '@clinic/shared';
+import { PAYMENT_METHODS, isValidTooth, type Condition, type PaymentMethod } from '@clinic/shared';
 import { db } from '../data/db';
 import { createRow, softDeleteRow, updateRow } from '../data/repository';
 import { recordedAtOf } from '../domain/format';
@@ -9,26 +9,40 @@ export interface ToothInput {
   remarks: string;
 }
 
+export interface PaymentInput {
+  amountCents: number;
+  method: PaymentMethod;
+  paidAt: string; // local YYYY-MM-DDTHH:mm
+  remarks: string;
+}
+
 export interface ProcedureInput {
   patientId: string;
   type: string;
   date: string; // YYYY-MM-DD (defaults to today in the UI, editable for past records)
   time: string; // HH:mm
   costCents: number;
-  paidCents: number;
   remarks: string;
   teeth: ToothInput[];
+  /** Optional amount received when the procedure is recorded. */
+  payment?: Omit<PaymentInput, 'paidAt'> | null;
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^\d{2}:\d{2}$/;
+const DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
-function validate(i: Pick<ProcedureInput, 'type' | 'date' | 'time' | 'costCents' | 'paidCents'>) {
+function validateProcedure(i: Pick<ProcedureInput, 'type' | 'date' | 'time' | 'costCents'>) {
   if (!i.type.trim()) throw new Error('Procedure type is required');
   if (!DATE.test(i.date)) throw new Error('A valid date is required');
   if (i.time && !TIME.test(i.time)) throw new Error('Time must look like 14:30');
-  if (!Number.isFinite(i.costCents) || i.costCents < 0) throw new Error('Cost cannot be negative');
-  if (!Number.isFinite(i.paidCents) || i.paidCents < 0) throw new Error('Amount paid cannot be negative');
+  if (!Number.isInteger(i.costCents) || i.costCents < 0) throw new Error('Cost cannot be negative');
+}
+
+function validatePayment(p: PaymentInput) {
+  if (!Number.isInteger(p.amountCents) || p.amountCents <= 0) throw new Error('Payment must be greater than zero');
+  if (!PAYMENT_METHODS.includes(p.method)) throw new Error('Choose a payment method');
+  if (!DATETIME.test(p.paidAt)) throw new Error('A valid payment date is required');
 }
 
 /**
@@ -36,14 +50,18 @@ function validate(i: Pick<ProcedureInput, 'type' | 'date' | 'time' | 'costCents'
  * the same transaction, so a patient's chart can never drift from their procedure history.
  */
 export async function createProcedure(input: ProcedureInput): Promise<string> {
-  validate(input);
+  validateProcedure(input);
   const seen = new Set<number>();
   for (const t of input.teeth) {
+    if (!isValidTooth(t.tooth)) throw new Error(`Tooth ${t.tooth} is not a valid FDI tooth`);
     if (seen.has(t.tooth)) throw new Error(`Tooth ${t.tooth} listed twice`);
     seen.add(t.tooth);
   }
+  const at = recordedAtOf(input.date, input.time);
+  const payment = input.payment && input.payment.amountCents > 0 ? { ...input.payment, paidAt: at } : null;
+  if (payment) validatePayment(payment);
 
-  return db.transaction('rw', db.patients, db.procedures, db.dental_records, db.tooth_entries, async () => {
+  return db.transaction('rw', [db.patients, db.procedures, db.payments, db.dental_records, db.tooth_entries], async () => {
     const patient = await db.patients.get(input.patientId);
     if (!patient || patient.isDeleted) throw new Error('A procedure needs an existing patient');
 
@@ -53,13 +71,13 @@ export async function createProcedure(input: ProcedureInput): Promise<string> {
       date: input.date,
       time: input.time,
       costCents: input.costCents,
-      paidCents: input.paidCents,
       remarks: input.remarks.trim(),
     });
+    if (payment) await createRow(db.payments, { procedureId: procedure.id, ...payment, remarks: payment.remarks.trim() });
     const record = await createRow(db.dental_records, {
       patientId: input.patientId,
       procedureId: procedure.id,
-      recordedAt: recordedAtOf(input.date, input.time),
+      recordedAt: at,
       remarks: input.remarks.trim(),
     });
     for (const t of input.teeth) {
@@ -76,7 +94,7 @@ export async function createProcedure(input: ProcedureInput): Promise<string> {
   });
 }
 
-export type ProcedurePatch = Partial<Pick<ProcedureInput, 'type' | 'date' | 'time' | 'costCents' | 'paidCents' | 'remarks'>>;
+export type ProcedurePatch = Partial<Pick<ProcedureInput, 'type' | 'date' | 'time' | 'costCents' | 'remarks'>>;
 
 /** Edits the procedure's own details; keeps the linked dental record's date in step. */
 export async function updateProcedure(id: string, patch: ProcedurePatch): Promise<void> {
@@ -84,33 +102,34 @@ export async function updateProcedure(id: string, patch: ProcedurePatch): Promis
     const current = await db.procedures.get(id);
     if (!current || current.isDeleted) throw new Error('Procedure not found');
     const next = { ...current, ...patch };
-    validate(next);
-    await updateRow(db.procedures, id, {
-      type: next.type.trim(),
-      date: next.date,
-      time: next.time,
-      costCents: next.costCents,
-      paidCents: next.paidCents,
-      remarks: next.remarks.trim(),
-    });
+    validateProcedure(next);
+    await updateRow(db.procedures, id, { type: next.type.trim(), date: next.date, time: next.time, costCents: next.costCents, remarks: next.remarks.trim() });
     if (patch.date !== undefined || patch.time !== undefined) {
-      const records = await db.dental_records.where('procedureId').equals(id).toArray();
-      for (const r of records) if (!r.isDeleted) await updateRow(db.dental_records, r.id, { recordedAt: recordedAtOf(next.date, next.time) });
+      for (const r of await db.dental_records.where('procedureId').equals(id).toArray()) {
+        if (!r.isDeleted) await updateRow(db.dental_records, r.id, { recordedAt: recordedAtOf(next.date, next.time) });
+      }
     }
   });
 }
 
-export async function addPayment(id: string, cents: number): Promise<void> {
-  if (!(cents > 0)) throw new Error('Payment must be greater than zero');
-  const current = await db.procedures.get(id);
-  if (!current || current.isDeleted) throw new Error('Procedure not found');
-  await updateProcedure(id, { paidCents: current.paidCents + cents });
+export async function addPayment(procedureId: string, input: PaymentInput): Promise<void> {
+  validatePayment(input);
+  await db.transaction('rw', db.procedures, db.payments, async () => {
+    const procedure = await db.procedures.get(procedureId);
+    if (!procedure || procedure.isDeleted) throw new Error('Procedure not found');
+    await createRow(db.payments, { procedureId, ...input, remarks: input.remarks.trim() });
+  });
 }
 
-/** Soft-deletes the procedure together with its dental record and tooth entries. */
+export async function deletePayment(id: string): Promise<void> {
+  await softDeleteRow(db.payments, id);
+}
+
+/** Soft-deletes the procedure together with its payments, dental record and tooth entries. */
 export async function deleteProcedure(id: string): Promise<void> {
-  await db.transaction('rw', db.procedures, db.dental_records, db.tooth_entries, async () => {
+  await db.transaction('rw', [db.procedures, db.payments, db.dental_records, db.tooth_entries], async () => {
     await softDeleteRow(db.procedures, id);
+    for (const p of await db.payments.where('procedureId').equals(id).toArray()) await softDeleteRow(db.payments, p.id);
     for (const r of await db.dental_records.where('procedureId').equals(id).toArray()) await softDeleteRow(db.dental_records, r.id);
     for (const e of await db.tooth_entries.where('procedureId').equals(id).toArray()) await softDeleteRow(db.tooth_entries, e.id);
   });

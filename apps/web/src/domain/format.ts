@@ -1,11 +1,11 @@
-import { balanceCents, type Patient, type Procedure } from '@clinic/shared';
+import { countryName, formatName, type Patient, type PatientAddress, type Procedure } from '@clinic/shared';
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 export const formatMoney = (cents: number) => peso.format(cents / 100);
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** Current local date/time, used as the default for new procedures (editable for past records). */
+/** Current local date/time, used as the default for new procedures and payments (editable). */
 export function nowLocal() {
   const d = new Date();
   return {
@@ -40,20 +40,31 @@ export function ageOf(birthDate: string, today = new Date()): number | null {
   return age;
 }
 
+/** "12 Mabini St, Brgy. San Roque, Quezon City, Metro Manila 1100" (+ country when not PH). */
+export function formatAddress(a: Pick<PatientAddress, 'street' | 'district' | 'city' | 'province' | 'postalCode' | 'countryCode'>): string {
+  const line = [a.street, a.district, a.city, [a.province, a.postalCode].filter(Boolean).join(' ')].map((s) => s.trim()).filter(Boolean);
+  if (a.countryCode && a.countryCode !== 'PH') line.push(countryName(a.countryCode));
+  return line.join(', ');
+}
+
+export const displayName = (p: Patient) => formatName(p);
+export const formalName = (p: Patient) => formatName(p, { salutation: true });
+
 export interface PatientSummary {
   patient: Patient;
+  name: string;
   lastVisit: string; // YYYY-MM-DD or ''
   balanceCents: number;
 }
 
-/** Derived (never stored): last visit and outstanding balance come from the procedures. */
-export function summarize(patient: Patient, procedures: Procedure[]): PatientSummary {
+/** Derived (never stored): last visit and outstanding balance come from procedures and payments. */
+export function summarize(patient: Patient, procedures: Procedure[], paid: Map<string, number>): PatientSummary {
   let lastVisit = '';
   let balance = 0;
   for (const p of procedures) {
     if (p.isDeleted || p.patientId !== patient.id) continue;
     if (p.date > lastVisit) lastVisit = p.date;
-    balance += balanceCents(p);
+    balance += p.costCents - (paid.get(p.id) ?? 0);
   }
-  return { patient, lastVisit, balanceCents: balance };
+  return { patient, name: formatName(patient), lastVisit, balanceCents: balance };
 }

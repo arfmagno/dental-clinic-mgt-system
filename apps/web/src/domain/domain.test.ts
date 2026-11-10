@@ -1,8 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Condition, DentalRecord, Patient, Procedure, ToothEntry } from '@clinic/shared';
+import {
+  deterministicUuid,
+  formatName,
+  isValidTooth,
+  legacyAddressRow,
+  legacyPatientPatch,
+  legacyPaymentRow,
+  nameGroup,
+  nameSortKey,
+  paidByProcedure,
+  splitLegacyFullName,
+  validateColumns,
+  type Condition,
+  type DentalRecord,
+  type Patient,
+  type Payment,
+  type Procedure,
+  type ToothEntry,
+} from '@clinic/shared';
 import { buildChart } from './chart.js';
-import { ageOf, recordedAtOf, summarize } from './format.js';
+import { ageOf, formatAddress, recordedAtOf, summarize } from './format.js';
+import { groupStartPages, pageWindow, paginate } from './paging.js';
 import { matchesPatient } from './search.js';
 
 const base = { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', isDeleted: false };
@@ -59,17 +78,24 @@ test('age accounts for whether the birthday has passed', () => {
   assert.equal(ageOf('garbage', today), null);
 });
 
-test('patient summary: last visit and outstanding balance come from live procedures only', () => {
-  const patient = { ...base, id: 'p', fullName: 'X', address: '', birthDate: '', occupation: '', civilStatus: '', citizenship: '', photo: '', remarks: '' } as Patient;
-  const proc = (id: string, date: string, cost: number, paid: number, extra: Partial<Procedure> = {}): Procedure => ({ ...base, id, patientId: 'p', type: 't', date, time: '', costCents: cost, paidCents: paid, remarks: '', ...extra });
-  const s = summarize(patient, [
-    proc('1', '2026-01-01', 10000, 4000),
-    proc('2', '2026-03-01', 5000, 0),
-    proc('3', '2026-09-09', 99999, 0, { isDeleted: true }), // deleted: ignored
-    proc('4', '2026-05-05', 100, 0, { patientId: 'other' }), // someone else's: ignored
-  ]);
+const patient = (extra: Partial<Patient> = {}): Patient => ({
+  ...base, id: 'p', salutation: '', firstName: 'Maria', middleName: 'Clara', lastName: 'Santos',
+  birthDate: '', occupation: 'Teacher', civilStatus: '', citizenshipCode: 'PH', photo: '', remarks: '', ...extra,
+});
+const proc = (id: string, date: string, cost: number, extra: Partial<Procedure> = {}): Procedure => ({ ...base, id, patientId: 'p', type: 't', date, time: '', costCents: cost, remarks: '', ...extra });
+const pay = (procedureId: string, amountCents: number, extra: Partial<Payment> = {}): Payment => ({ ...base, id: `y${++n}`, procedureId, amountCents, paidAt: '2026-01-01T09:00', method: 'cash', remarks: '', ...extra });
+
+test('patient summary: last visit and balance come from live procedures and live payments only', () => {
+  const paid = paidByProcedure([pay('1', 3000), pay('1', 1000), pay('2', 5000, { isDeleted: true })]);
+  const s = summarize(patient(), [
+    proc('1', '2026-01-01', 10000),
+    proc('2', '2026-03-01', 5000),
+    proc('3', '2026-09-09', 99999, { isDeleted: true }), // deleted: ignored
+    proc('4', '2026-05-05', 100, { patientId: 'other' }), // someone else's: ignored
+  ], paid);
   assert.equal(s.lastVisit, '2026-03-01');
-  assert.equal(s.balanceCents, 11000);
+  assert.equal(s.balanceCents, 6000 + 5000);
+  assert.equal(s.name, 'Maria Clara Santos');
 });
 
 test('recordedAt combines date and time (time optional)', () => {
@@ -77,10 +103,79 @@ test('recordedAt combines date and time (time optional)', () => {
   assert.equal(recordedAtOf('2026-03-05', ''), '2026-03-05T00:00');
 });
 
-test('search: every word must match name or contact values', () => {
-  const p = { fullName: 'Maria Santos', address: 'Quezon City', occupation: 'Teacher' } as Patient;
-  assert.equal(matchesPatient(p, ' 0917 555 0101 m.me/maria', 'maria 0917'), true);
-  assert.equal(matchesPatient(p, '', 'MARIA quezon'), true);
+test('names: full name is derived from parts in several formats', () => {
+  const p = patient({ salutation: 'Dr.' });
+  assert.equal(formatName(p), 'Maria Clara Santos');
+  assert.equal(formatName(p, { salutation: true }), 'Dr. Maria Clara Santos');
+  assert.equal(formatName(p, { middle: 'initial' }), 'Maria C. Santos');
+  assert.equal(formatName(p, { lastFirst: true, middle: 'none' }), 'Santos, Maria');
+  assert.equal(formatName(patient({ middleName: '' })), 'Maria Santos');
+});
+
+test('names: grouping and sorting use the last name, ignoring case and accents', () => {
+  assert.equal(nameGroup(patient({ lastName: 'Ñañez' })), 'N');
+  assert.equal(nameGroup(patient({ lastName: 'élan' })), 'E');
+  assert.equal(nameGroup(patient({ lastName: '1st' })), '#');
+  const sorted = [patient({ lastName: 'Zamora' }), patient({ lastName: 'abad' }), patient({ lastName: 'Ábalos' })].sort((a, b) => nameSortKey(a).localeCompare(nameSortKey(b)));
+  assert.deepEqual(sorted.map((p) => p.lastName), ['abad', 'Ábalos', 'Zamora']);
+});
+
+test('search: every word must match name, contacts or address text (accent-insensitive)', () => {
+  const p = patient({ lastName: 'Peñaflor' });
+  assert.equal(matchesPatient(p, ' 0917 555 0101 Quezon City', 'maria 0917'), true);
+  assert.equal(matchesPatient(p, 'Quezon City', 'penaflor quezon'), true);
   assert.equal(matchesPatient(p, '', 'maria pedro'), false);
   assert.equal(matchesPatient(p, '', '   '), true);
+});
+
+test('address formatting skips blanks and shows the country only when not PH', () => {
+  const a = { street: '12 Mabini St', district: '', city: 'Quezon City', province: 'Metro Manila', postalCode: '1100', countryCode: 'PH' };
+  assert.equal(formatAddress(a), '12 Mabini St, Quezon City, Metro Manila 1100');
+  assert.match(formatAddress({ ...a, countryCode: 'JP' }), /Japan$/);
+});
+
+test('paging: pages are clamped and group start pages point to the first item of each letter', () => {
+  const list = Array.from({ length: 60 }, (_, i) => (i < 30 ? 'A' : i < 55 ? 'B' : 'C'));
+  assert.equal(paginate(list, 25, 99).page, 3);
+  assert.equal(paginate(list, 25, 0).page, 1);
+  assert.equal(paginate(list, 25, 3).items.length, 10);
+  assert.deepEqual([...groupStartPages(list, (x) => x, 25)], [['A', 1], ['B', 2], ['C', 3]]);
+  assert.deepEqual(pageWindow(6, 12), [1, '…', 5, 6, 7, '…', 12]);
+  assert.deepEqual(pageWindow(1, 2), [1, 2]);
+});
+
+test('legacy v1 → v2: name split keeps surname particles with the last name', () => {
+  assert.deepEqual(splitLegacyFullName('Juan Dela Cruz'), { firstName: 'Juan', middleName: '', lastName: 'Dela Cruz' });
+  assert.deepEqual(splitLegacyFullName('Ana Marie de los Santos'), { firstName: 'Ana', middleName: 'Marie', lastName: 'de los Santos' });
+  assert.deepEqual(splitLegacyFullName('Madonna'), { firstName: 'Madonna', middleName: '', lastName: '' });
+});
+
+test('legacy v1 → v2: citizenship becomes a code, unknown text is kept in remarks', () => {
+  assert.equal(legacyPatientPatch({ id: 'x', citizenship: 'Filipino' }).citizenshipCode, 'PH');
+  const odd = legacyPatientPatch({ id: 'x', citizenship: 'Martian', remarks: 'Allergic to latex' });
+  assert.equal(odd.citizenshipCode, '');
+  assert.equal(odd.remarks, 'Allergic to latex\nCitizenship (from earlier record): Martian');
+});
+
+test('legacy v1 → v2: address and payment rows are deterministic (device and server agree)', () => {
+  const a1 = legacyAddressRow({ id: 'p1', address: '12 Mabini St' }, 'now')!;
+  const a2 = legacyAddressRow({ id: 'p1', address: '12 Mabini St' }, 'later')!;
+  assert.equal(a1.id, a2.id);
+  assert.match(a1.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(legacyAddressRow({ id: 'p1', address: '  ' }, 'now'), null);
+  const y = legacyPaymentRow({ id: 'r1', date: '2026-02-01', time: '', paidCents: 1500 }, 'now')!;
+  assert.equal(y.paidAt, '2026-02-01T00:00');
+  assert.equal(y.amountCents, 1500);
+  assert.equal(legacyPaymentRow({ id: 'r1', date: '2026-02-01', paidCents: 0 }, 'now'), null);
+  assert.notEqual(deterministicUuid('a'), deterministicUuid('b'));
+});
+
+test('validation: vocabularies, money and teeth are enforced', () => {
+  assert.equal(validateColumns('payments', { amountCents: 0, paidAt: '2026-01-01T09:00', method: 'cash' }), 'invalid amountCents');
+  assert.equal(validateColumns('payments', { amountCents: 100, paidAt: '2026-01-01T09:00', method: 'gold' }), 'invalid method');
+  assert.equal(validateColumns('patients', { salutation: 'Sir' }), 'invalid salutation');
+  assert.equal(validateColumns('patients', { salutation: 'Dr.', citizenshipCode: 'PH' }), null);
+  assert.equal(isValidTooth(18), true);
+  assert.equal(isValidTooth(19), false);
+  assert.equal(isValidTooth(55), true);
 });

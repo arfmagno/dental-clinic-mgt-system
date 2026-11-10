@@ -1,9 +1,12 @@
-import type { Patient } from '@clinic/shared';
+import { fold, formatName, type Patient } from '@clinic/shared';
 
-/** Case-insensitive match on name, address, occupation or any contact value; every word must match. */
-export function matchesPatient(p: Patient, contactText: string, query: string): boolean {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+/**
+ * Accent- and case-insensitive match on name (any order), occupation, contact values and
+ * address text; every word typed must match something.
+ */
+export function matchesPatient(p: Patient, extraText: string, query: string): boolean {
+  const words = fold(query).split(/\s+/).filter(Boolean);
   if (!words.length) return true;
-  const hay = `${p.fullName} ${p.address} ${p.occupation} ${contactText}`.toLowerCase();
+  const hay = fold(`${formatName(p, { salutation: true })} ${p.occupation} ${extraText}`);
   return words.every((w) => hay.includes(w));
 }
