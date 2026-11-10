@@ -1,138 +1,11 @@
 // Shared domain model: used by the offline-first web client and the sync server.
-
-// ---------- Conditions ----------
-export const CONDITIONS = [
-  'healthy',
-  'cavity',
-  'filled',
-  'missing',
-  'extracted',
-  'impacted',
-  'root_canal',
-  'crown',
-] as const;
-export type Condition = (typeof CONDITIONS)[number];
-
-export const CONDITION_LABEL: Record<Condition, string> = {
-  healthy: 'Healthy',
-  cavity: 'Cavity',
-  filled: 'Cavity filled',
-  missing: 'Missing',
-  extracted: 'Extracted',
-  impacted: 'Impacted',
-  root_canal: 'Root canal',
-  crown: 'Crown',
-};
-
-export const CONDITION_COLOR: Record<Condition, string> = {
-  healthy: '#f8fafc',
-  cavity: '#ef4444',
-  filled: '#3b82f6',
-  missing: '#d1d5db',
-  extracted: '#6b7280',
-  impacted: '#a855f7',
-  root_canal: '#f97316',
-  crown: '#eab308',
-};
-
-// Procedure type -> the tooth condition it normally results in.
-export const PROCEDURE_TYPES: { name: string; condition?: Condition }[] = [
-  { name: 'Check-up / Charting' },
-  { name: 'Cleaning (Prophylaxis)' },
-  { name: 'Filling', condition: 'filled' },
-  { name: 'Extraction', condition: 'extracted' },
-  { name: 'Root Canal', condition: 'root_canal' },
-  { name: 'Crown', condition: 'crown' },
-  { name: 'Impacted Tooth Removal', condition: 'extracted' },
-  { name: 'Whitening' },
-  { name: 'Braces / Orthodontics' },
-  { name: 'Dentures' },
-  { name: 'X-ray' },
-  { name: 'Other' },
-];
-
-// ---------- FDI tooth numbering ----------
-export type Dentition = 'permanent' | 'primary';
-export type ToothKind = 'molar' | 'premolar' | 'canine' | 'incisor';
-
-const range = (from: number, to: number) => {
-  const out: number[] = [];
-  const step = from <= to ? 1 : -1;
-  for (let n = from; n !== to + step; n += step) out.push(n);
-  return out;
-};
-
-export const QUADRANTS: Record<Dentition, { upperRight: number[]; upperLeft: number[]; lowerRight: number[]; lowerLeft: number[] }> = {
-  permanent: {
-    upperRight: range(18, 11),
-    upperLeft: range(21, 28),
-    lowerRight: range(48, 41),
-    lowerLeft: range(31, 38),
-  },
-  primary: {
-    upperRight: range(55, 51),
-    upperLeft: range(61, 65),
-    lowerRight: range(85, 81),
-    lowerLeft: range(71, 75),
-  },
-};
-
-export function dentitionOf(tooth: number): Dentition {
-  const q = Math.floor(tooth / 10);
-  return q >= 5 ? 'primary' : 'permanent';
-}
-
-export function toothKind(tooth: number): ToothKind {
-  const pos = tooth % 10;
-  if (pos <= 2) return 'incisor';
-  if (pos === 3) return 'canine';
-  if (dentitionOf(tooth) === 'primary') return 'molar';
-  return pos <= 5 ? 'premolar' : 'molar';
-}
-
-export interface ToothBox {
-  tooth: number;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  upper: boolean;
-}
-
-/** Geometry shared by the on-screen SVG odontogram and the PDF export. */
-export function toothLayout(d: Dentition) {
-  const q = QUADRANTS[d];
-  const cell = d === 'permanent' ? 34 : 44;
-  const gap = 18;
-  const widthOf: Record<ToothKind, number> = { molar: 30, premolar: 25, canine: 23, incisor: 21 };
-  const heightOf: Record<ToothKind, number> = { molar: 34, premolar: 34, canine: 40, incisor: 38 };
-  const half = q.upperRight.length * cell;
-  const width = half * 2 + gap;
-  const rowUpperY = 22;
-  const rowLowerY = 22 + 40 + 44;
-  const teeth: ToothBox[] = [];
-  const place = (list: number[], x0: number, upper: boolean) => {
-    list.forEach((tooth, i) => {
-      const k = toothKind(tooth);
-      const w = widthOf[k];
-      const h = heightOf[k];
-      const baseY = upper ? rowUpperY : rowLowerY;
-      teeth.push({
-        tooth,
-        x: x0 + i * cell + (cell - w) / 2,
-        y: upper ? baseY + (40 - h) : baseY,
-        w,
-        h,
-        upper,
-      });
-    });
-  };
-  place(q.upperRight, 0, true);
-  place(q.upperLeft, half + gap, true);
-  place(q.lowerRight, 0, false);
-  place(q.lowerLeft, half + gap, false);
-  return { teeth, width, height: rowLowerY + 40 + 22, half, gap, rowUpperY, rowLowerY };
-}
+export * from './teeth.js';
+export * from './names.js';
+export * from './countries.js';
+export * from './validation.js';
+export * from './legacy.js';
+export * from './vocab.js';
+import type { Condition, ContactType, PaymentMethod } from './vocab.js';
 
 // ---------- Rows ----------
 export interface BaseRow {
@@ -142,17 +15,16 @@ export interface BaseRow {
   isDeleted: boolean; // soft delete
 }
 
-export const CIVIL_STATUSES = ['Single', 'Married', 'Widowed', 'Separated', 'Divorced'] as const;
-export const CONTACT_TYPES = ['phone', 'email', 'messenger', 'other'] as const;
-export type ContactType = (typeof CONTACT_TYPES)[number];
-
+/** Full name is never stored; it is derived from the parts (see names.ts). */
 export interface Patient extends BaseRow {
-  fullName: string;
-  address: string;
+  salutation: string; // one of SALUTATIONS or ''
+  firstName: string;
+  middleName: string;
+  lastName: string;
   birthDate: string; // YYYY-MM-DD or ''
   occupation: string;
-  civilStatus: string;
-  citizenship: string;
+  civilStatus: string; // one of CIVIL_STATUSES or ''
+  citizenshipCode: string; // ISO 3166-1 alpha-2 (e.g. PH) or ''
   photo: string; // compressed data URL or ''
   remarks: string;
 }
@@ -162,7 +34,19 @@ export interface PatientContact extends BaseRow {
   type: ContactType;
   value: string;
   label: string;
-  isPrimary: boolean;
+  isPrimary: boolean; // exactly one primary per patient (enforced by the service)
+}
+
+export interface PatientAddress extends BaseRow {
+  patientId: string;
+  label: string; // Home / Work / Other
+  street: string; // house no., street, subdivision
+  district: string; // barangay / district
+  city: string; // city / municipality
+  province: string;
+  postalCode: string;
+  countryCode: string; // ISO 3166-1 alpha-2
+  isPrimary: boolean; // exactly one primary per patient (enforced by the service)
 }
 
 export interface Procedure extends BaseRow {
@@ -171,7 +55,15 @@ export interface Procedure extends BaseRow {
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
   costCents: number;
-  paidCents: number;
+  remarks: string;
+}
+
+/** Money received for a procedure. Balance = cost − Σ payments. */
+export interface Payment extends BaseRow {
+  procedureId: string;
+  amountCents: number; // > 0
+  paidAt: string; // local YYYY-MM-DDTHH:mm
+  method: PaymentMethod;
   remarks: string;
 }
 
@@ -188,21 +80,31 @@ export interface ToothEntry extends BaseRow {
   recordId: string;
   patientId: string;
   procedureId: string | null;
-  tooth: number; // FDI
+  tooth: number; // FDI number; references the tooth catalog
   condition: Condition;
   remarks: string;
 }
 
 // ---------- Sync definition ----------
 // Order matters: parents before children (server enforces foreign keys).
-export const SYNC_TABLES = ['patients', 'patient_contacts', 'procedures', 'dental_records', 'tooth_entries'] as const;
+export const SYNC_TABLES = [
+  'patients',
+  'patient_contacts',
+  'patient_addresses',
+  'procedures',
+  'payments',
+  'dental_records',
+  'tooth_entries',
+] as const;
 export type SyncTable = (typeof SYNC_TABLES)[number];
 
 export const BASE_COLUMNS = ['id', 'createdAt', 'updatedAt', 'isDeleted'] as const;
 export const TABLE_COLUMNS: Record<SyncTable, readonly string[]> = {
-  patients: ['fullName', 'address', 'birthDate', 'occupation', 'civilStatus', 'citizenship', 'photo', 'remarks'],
+  patients: ['salutation', 'firstName', 'middleName', 'lastName', 'birthDate', 'occupation', 'civilStatus', 'citizenshipCode', 'photo', 'remarks'],
   patient_contacts: ['patientId', 'type', 'value', 'label', 'isPrimary'],
-  procedures: ['patientId', 'type', 'date', 'time', 'costCents', 'paidCents', 'remarks'],
+  patient_addresses: ['patientId', 'label', 'street', 'district', 'city', 'province', 'postalCode', 'countryCode', 'isPrimary'],
+  procedures: ['patientId', 'type', 'date', 'time', 'costCents', 'remarks'],
+  payments: ['procedureId', 'amountCents', 'paidAt', 'method', 'remarks'],
   dental_records: ['patientId', 'procedureId', 'recordedAt', 'remarks'],
   tooth_entries: ['recordId', 'patientId', 'procedureId', 'tooth', 'condition', 'remarks'],
 };
@@ -223,7 +125,12 @@ export interface PullResponse {
   hasMore: boolean;
 }
 
-// ---------- Helpers ----------
+// ---------- Money ----------
 export const toCents = (pesos: number | string) => Math.round(Number(pesos || 0) * 100);
 export const fromCents = (cents: number) => cents / 100;
-export const balanceCents = (p: Pick<Procedure, 'costCents' | 'paidCents'>) => p.costCents - p.paidCents;
+/** Sum of live payments per procedure id. */
+export function paidByProcedure(payments: Pick<Payment, 'procedureId' | 'amountCents' | 'isDeleted'>[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const p of payments) if (!p.isDeleted) m.set(p.procedureId, (m.get(p.procedureId) ?? 0) + p.amountCents);
+  return m;
+}
