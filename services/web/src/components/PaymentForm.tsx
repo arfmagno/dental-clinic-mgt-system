@@ -6,7 +6,8 @@ import { addPayment } from '../services/procedureService';
 interface Props {
   procedureId: string;
   balanceCents: number;
-  onDone(): void;
+  /** true after a payment was recorded, false on cancel. */
+  onDone(saved: boolean): void;
 }
 
 /** Record money received for a procedure. Defaults: the outstanding balance, cash, now. */
@@ -26,7 +27,7 @@ export function PaymentForm({ procedureId, balanceCents, onDone }: Props) {
     setError('');
     try {
       await addPayment(procedureId, { amountCents: toCents(amount), method, paidAt: `${date}T${time || '00:00'}`, remarks });
-      onDone();
+      onDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save');
       setSaving(false);
@@ -54,9 +55,9 @@ export function PaymentForm({ procedureId, balanceCents, onDone }: Props) {
       </div>
       <label className="field"><span>Remarks</span><input value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. OR no. 1234" /></label>
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="row form-actions">
+      <div className="form-actions">
         <button className="btn primary" disabled={saving}>{saving ? 'Recording…' : 'Record payment'}</button>
-        <button type="button" className="btn" onClick={onDone} disabled={saving}>Cancel</button>
+        <button type="button" className="btn" onClick={() => onDone(false)} disabled={saving}>Cancel</button>
       </div>
     </form>
   );

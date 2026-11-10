@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 
 test('add patient: last name and date of birth are required; citizenship defaults to Filipino', async ({ page }) => {
   const errors = trackErrors(page);
-  await page.getByRole('link', { name: /Add patient/ }).first().click();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Add Patient' }).click();
   await expect(page).toHaveURL(/\/patients\/new$/);
   await expect(page.locator('.topbar')).toBeVisible(); // a staff page, not the isolated patient mode
 
@@ -36,7 +36,7 @@ test('add patient: last name and date of birth are required; citizenship default
   await page.getByLabel('Middle name').fill('Clara');
   await page.getByLabel('Date of birth *').fill('1990-05-17');
   await page.getByLabel('Contact detail').first().fill('0917 555 0101');
-  await page.getByRole('button', { name: '+ Add contact' }).click();
+  await page.getByRole('button', { name: '+ Add', exact: true }).click();
   await page.getByLabel('Contact type').nth(1).selectOption('messenger');
   await page.getByLabel('Contact detail').nth(1).fill('m.me/maria.santos');
   await page.locator('.contact-row').nth(1).locator('.primary-pick input').check();
@@ -55,7 +55,7 @@ test('add patient: last name and date of birth are required; citizenship default
 
 test('a foreign address shows its country; editing keeps a single address', async ({ page }) => {
   await addPatient(page, { first: 'Kenji', last: 'Sato', address: '2-1 Shibuya, Tokyo' });
-  await page.getByRole('button', { name: 'Edit patient' }).click();
+  await page.locator('.profile').getByRole('button', { name: 'Edit', exact: true }).click();
   const modal = page.locator('.modal');
   await modal.getByLabel('Citizenship *').selectOption({ label: 'Japanese' });
   await modal.getByLabel('Country').selectOption({ label: 'Japan' });
@@ -65,9 +65,9 @@ test('a foreign address shows its country; editing keeps a single address', asyn
   await expect(page.locator('.facts')).toContainText('Japanese');
 });
 
-test('patient mode: only via the lock button, isolated, survives reload, PIN to leave', async ({ page }) => {
-  await page.getByRole('button', { name: /Lock/ }).click();
-  await page.getByRole('menuitem', { name: /Hand to patient/ }).click();
+test('patient mode: from Add Patient, isolated, survives reload, PIN to leave', async ({ page }) => {
+  await page.goto('/patients/new');
+  await page.getByRole('button', { name: 'Hand to patient' }).click();
   await expect(page.locator('.topbar')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('.topbar')).toHaveCount(0);
@@ -95,7 +95,7 @@ test('patient mode: only via the lock button, isolated, survives reload, PIN to 
 
 test('sample data: list grouped by last-name initial, 25 per page, A–Z jump, search', async ({ page }) => {
   await loadSampleData(page);
-  await expect(page.locator('.stat', { hasText: 'Patients' })).toContainText('60');
+  await expect(page.locator('.stat')).toHaveCount(0); // no patient / balance cards on the dashboard
 
   await page.goto('/patients');
   await expect(page.getByText(/of 60 patients/)).toBeVisible();
@@ -118,8 +118,12 @@ test('sample data: list grouped by last-name initial, 25 per page, A–Z jump, s
 
   // removing the sample data leaves the list empty again
   await page.goto('/?demo');
-  page.once('dialog', (d) => d.accept());
-  await page.getByRole('button', { name: 'Remove sample data' }).click();
+  let browserDialog = false;
+  page.on('dialog', (d) => ((browserDialog = true), void d.dismiss()));
+  await page.getByRole('region', { name: 'Sample data' }).getByRole('button', { name: 'Remove', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Remove sample data?' }).getByRole('button', { name: 'Remove sample data' }).click();
   await expect(page.getByRole('status')).toHaveText('Sample data removed.');
-  await expect(page.locator('.stat', { hasText: 'Patients' })).toContainText('0');
+  expect(browserDialog).toBe(false); // in-app pop-up, not a browser confirm
+  await page.goto('/patients');
+  await expect(page.getByText('No patients yet.')).toBeVisible();
 });

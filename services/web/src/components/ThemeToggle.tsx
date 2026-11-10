@@ -1,31 +1,26 @@
 import { useState } from 'react';
-import { getThemePref, setThemePref, type ThemePref } from '../services/theme';
+import { getTheme, setTheme, type Theme } from '../services/theme';
+import { Icon } from './Icon';
 
-const OPTIONS: { value: ThemePref; label: string; icon: string }[] = [
-  { value: 'light', label: 'Light', icon: '☀️' },
-  { value: 'dark', label: 'Dark', icon: '🌙' },
-  { value: 'system', label: 'Match device', icon: '🖥️' },
-];
-
-/** Light / dark / match-device appearance switch (remembered on this device). */
+/** Dark mode switch (light by default; remembered on this device). */
 export function ThemeToggle() {
-  const [pref, setPref] = useState<ThemePref>(getThemePref);
+  const [theme, set] = useState<Theme>(getTheme);
+  const dark = theme === 'dark';
   return (
-    <div className="seg theme-toggle" role="radiogroup" aria-label="Appearance">
-      {OPTIONS.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={pref === o.value}
-          className={pref === o.value ? 'on' : ''}
-          title={o.label}
-          onClick={() => (setThemePref(o.value), setPref(o.value))}
-        >
-          <span aria-hidden>{o.icon}</span>
-          <span className="sr-only">{o.label}</span>
-        </button>
-      ))}
-    </div>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={dark}
+      aria-label="Dark mode"
+      title={dark ? 'Light mode' : 'Dark mode'}
+      className="btn ghost icon"
+      onClick={() => {
+        const next: Theme = dark ? 'light' : 'dark';
+        setTheme(next);
+        set(next);
+      }}
+    >
+      <Icon name={dark ? 'sun' : 'moon'} />
+    </button>
   );
 }

@@ -58,9 +58,9 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `domain/search.ts` | `matchesPatient` (accent-insensitive, every word must match) |
 | `domain/paging.ts` | `paginate`, `groupStartPages` (A–Z bar), `pageWindow` |
 | `services/patientService.ts` | `savePatient` (patient + contacts atomically, one primary contact; address country kept only with an address line), `validatePatient` (names, DOB not in the future, citizenship), `deletePatient` |
-| `services/procedureService.ts` | `createProcedure` (procedure + dental record + tooth entries + optional first payment in one transaction), update, `addPayment`, `deletePayment`, cascade delete |
+| `services/procedureService.ts` | `createProcedure` (procedure + dental record + tooth entries + optional first payment in one transaction), update, `addPayment`, `settleProcedures` (each record in full, one transaction), `deletePayment`, cascade delete |
 | `services/pinService.ts` | Staff PIN: PBKDF2 hash, verify with back-off, session unlock flag, patient-mode flag |
-| `services/theme.ts` | Light/dark/system preference → `html[data-theme]` |
+| `services/theme.ts` | Light (default) / dark → `html[data-theme]` |
 | `services/syncEngine.ts` | `syncOnce`: push dirty rows in batches, then pull pages; LWW rules |
 | `services/session.ts` | Sync token: `connectToServer(password)`, `disconnectFromServer()` |
 | `services/api.ts` | `fetch` wrapper; `ApiError` (`status 0` = offline) |
@@ -71,10 +71,11 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `hooks/useData.ts` | Live queries: summaries, search index (contacts + address), patient bundle, procedures, activity |
 | `hooks/useLock.tsx` | `LockProvider`: stages `setup → locked → open ⇄ patient`; create/verify/reset PIN |
 | `hooks/useSync.tsx` | `SyncProvider`: offline by default, auto-sync when on (start, reconnect, every 30 s, 1.5 s after edits) |
-| `components/` | `Odontogram`, `ProcedureForm`, `PatientForm`, `ContactsEditor`, `CountrySelect`, `NationalitySelect`, `ProcedureTypeField` (list + "Other" text), `PaymentForm`, `PinForm`, `PhotoPicker`, `PatientPicker`, `ThemeToggle`, `Modal`, `Layout` (incl. lock menu), `SyncChip` |
-| `pages/` | `Dashboard`, `Patients`, `PatientNew`, `PatientDetail`, `AddProcedure`, `Records`, `Connect`, `LockScreens` (`SetupPin`, `Unlock`, `PatientMode`) |
+| `domain/classification.ts` | `classificationOf(patient)`: the dentist's dental classification, or the age suggestion |
+| `components/` | `Odontogram`, `DentalChart` (only the classification's chart(s)), `Feedback` (`useFeedback().confirm/notify`: in-app dialogs and notifications; never use `window.confirm/alert`), `Icon`, `ProcedureForm`, `PatientForm`, `ContactsEditor`, `CountrySelect`, `NationalitySelect`, `ProcedureTypeField` (list + "Other" text), `PaymentForm`, `PinForm`, `PhotoPicker`, `PatientPicker`, `ThemeToggle`, `Modal`, `Layout` (top nav; bottom tab bar + Add sheet on phones), `SyncChip` |
+| `pages/` | `Dashboard`, `Patients`, `PatientNew`, `PatientDetail`, `AddProcedure` (Add Record), `Records`, `Transactions` (settle one or many), `Connect`, `LockScreens` (`SetupPin`, `Unlock`, `PatientMode`) |
 | `domain/procedureType.ts` | `splitProcedureType` / `resolveProcedureType`: stored type to list choice + "Other" text and back |
-| `**/*.test.ts(x)` | Vitest: `domain/domain.test.ts` (pure logic), `services/services.test.ts` (services on fake IndexedDB), `data/db.upgrade.test.ts` (device upgrades), `components/components.test.tsx`, `pages/Connect.test.tsx`; setup in `test/setup.ts` |
+| `**/*.test.ts(x)` | Vitest: `domain/domain.test.ts` (pure logic), `services/services.test.ts` (services on fake IndexedDB), `data/db.upgrade.test.ts` (device upgrades), `components/components.test.tsx`, `components/feedback.test.tsx` (pop-ups, Transactions), `pages/Connect.test.tsx`; setup in `test/setup.ts` |
 
 ## Shared reference (`shared/src`)
 

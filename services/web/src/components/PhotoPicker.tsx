@@ -79,7 +79,7 @@ export function PhotoPicker({ value, onChange }: Props) {
           <div className="avatar large">{value ? <img src={value} alt="Patient" /> : <span aria-hidden>👤</span>}</div>
           <div className="stack tight">
             <div className="row wrap">
-              <button type="button" className="btn" onClick={openCamera} disabled={busy}>Take photo</button>
+              <button type="button" className="btn" onClick={openCamera} disabled={busy}>Camera</button>
               <button type="button" className="btn" onClick={() => (fileRef.current?.removeAttribute('capture'), fileRef.current?.click())} disabled={busy}>Upload</button>
               {value && <button type="button" className="btn ghost" onClick={() => onChange('')}>Remove</button>}
             </div>

@@ -1,73 +1,95 @@
-import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
-import { useLock } from '../hooks/useLock';
+import { useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Icon, type IconName } from './Icon';
 import { SyncChip } from './SyncChip';
 import { ThemeToggle } from './ThemeToggle';
 
-const links = [
-  { to: '/', label: 'Home', end: true },
-  { to: '/patients', label: 'Patients', end: true },
-  { to: '/patients/new', label: 'Add patient' },
-  { to: '/procedures/new', label: 'Add procedure' },
-  { to: '/records', label: 'Records' },
-];
+interface NavItem {
+  to: string;
+  label: string;
+  icon: IconName;
+  end?: boolean;
+}
 
+export const NAV: NavItem[] = [
+  { to: '/', label: 'Home', icon: 'home', end: true },
+  { to: '/patients', label: 'Patients', icon: 'users', end: true },
+  { to: '/patients/new', label: 'Add Patient', icon: 'userPlus' },
+  { to: '/records/new', label: 'Add Record', icon: 'filePlus' },
+  { to: '/records', label: 'Records', icon: 'list', end: true },
+  { to: '/transactions', label: 'Transactions', icon: 'wallet' },
+];
+const byPath = (to: string) => NAV.find((n) => n.to === to)!;
+const TABS_LEFT = [byPath('/'), byPath('/patients')];
+const TABS_RIGHT = [byPath('/records'), byPath('/transactions')];
+const ADD = [byPath('/patients/new'), byPath('/records/new')];
+
+const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '');
+
+/**
+ * Large screens: a top bar with every destination. Phones: a compact top bar plus a bottom tab bar
+ * (Home, Patients, Add, Records, Transactions); "Add" opens a sheet with Add Patient / Add Record.
+ */
 export function Layout() {
+  // The add sheet belongs to the page it was opened on, so any navigation closes it.
+  const { pathname } = useLocation();
+  const [addOpenOn, setAddOpenOn] = useState<string | null>(null);
+  const addOpen = addOpenOn === pathname;
+  const setAddOpen = (open: boolean) => setAddOpenOn(open ? pathname : null);
+
   return (
     <div className="app">
       <header className="topbar">
-        <NavLink to="/" className="brand" end>
-          <span className="logo" aria-hidden>🦷</span> Clinic
-        </NavLink>
-        <nav aria-label="Main">
-          {links.map((l) => (
-            <NavLink key={l.to} to={l.to} end={l.end} className={({ isActive }) => (isActive ? 'active' : '')}>
+        <Link to="/" className="brand">
+          <span className="brand-mark" aria-hidden>🦷</span>
+          <span>Clinic</span>
+        </Link>
+        <nav className="topnav" aria-label="Main">
+          {NAV.map((l) => (
+            <NavLink key={l.to} to={l.to} end={l.end} className={navClass}>
               {l.label}
             </NavLink>
           ))}
         </nav>
         <div className="topbar-tools">
-          <ThemeToggle />
           <SyncChip />
-          <LockMenu />
+          <ThemeToggle />
         </div>
       </header>
+
       <main className="page">
         <Outlet />
       </main>
+
+      <nav className="tabbar" aria-label="Tabs">
+        {TABS_LEFT.map((l) => <Tab key={l.to} item={l} />)}
+        <button type="button" className={`tab add ${addOpen ? 'open' : ''}`} aria-label="Add" aria-expanded={addOpen} onClick={() => setAddOpen(!addOpen)}>
+          <span className="fab"><Icon name="plus" size={24} /></span>
+        </button>
+        {TABS_RIGHT.map((l) => <Tab key={l.to} item={l} />)}
+      </nav>
+
+      {addOpen && (
+        <div className="sheet-backdrop" onClick={() => setAddOpen(false)}>
+          <div className="sheet" role="menu" aria-label="Add" onClick={(e) => e.stopPropagation()}>
+            {ADD.map((l) => (
+              <Link key={l.to} to={l.to} role="menuitem" className="sheet-item" onClick={() => setAddOpen(false)}>
+                <span className="sheet-icon"><Icon name={l.icon} /></span>
+                {l.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/** The only way into the isolated patient view (and to lock the app when stepping away). */
-function LockMenu() {
-  const { lockForPatient, lockApp } = useLock();
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => !root.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-
+function Tab({ item }: { item: NavItem }) {
   return (
-    <div className="sync" ref={root}>
-      <button className="btn lock-btn" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="menu" title="Lock">
-        <span aria-hidden>🔒</span> Lock
-      </button>
-      {open && (
-        <div className="popover menu" role="menu">
-          <button role="menuitem" className="menu-item" onClick={lockForPatient}>
-            <strong>Hand to patient</strong>
-            <small className="muted">Shows only the registration form. Staff PIN to leave.</small>
-          </button>
-          <button role="menuitem" className="menu-item" onClick={lockApp}>
-            <strong>Lock app</strong>
-            <small className="muted">Hide everything until the staff PIN is entered.</small>
-          </button>
-        </div>
-      )}
-    </div>
+    <NavLink to={item.to} end={item.end} className={({ isActive }) => `tab ${isActive ? 'active' : ''}`}>
+      <span className="tab-icon"><Icon name={item.icon} /></span>
+      <span className="tab-label">{item.label}</span>
+    </NavLink>
   );
 }

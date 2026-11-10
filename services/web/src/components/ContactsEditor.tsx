@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { CONTACT_TYPES, type ContactType } from '@clinic/shared';
+import { Icon } from './Icon';
 import { emptyContact, withSinglePrimary, type ContactInput } from '../services/patientService';
 
 const PLACEHOLDER: Record<ContactType, string> = {
@@ -41,11 +42,11 @@ export function ContactsEditor({ value, onChange }: Props) {
             <input type="radio" name={`${group}-primary`} checked={c.isPrimary} onChange={() => makePrimary(i)} />
             <span>Primary</span>
           </label>
-          <button type="button" className="btn ghost icon" aria-label="Remove contact" onClick={() => remove(i)}>✕</button>
+          <button type="button" className="btn ghost icon" aria-label="Remove contact" onClick={() => remove(i)}><Icon name="x" /></button>
         </div>
       ))}
       <div>
-        <button type="button" className="btn" onClick={() => onChange([...value, emptyContact(value.length === 0)])}>+ Add contact</button>
+        <button type="button" className="btn" onClick={() => onChange([...value, emptyContact(value.length === 0)])}>+ Add</button>
       </div>
     </div>
   );

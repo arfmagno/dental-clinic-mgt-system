@@ -6,20 +6,21 @@ import {
   PAYMENT_METHOD_LABEL,
   PROCEDURE_TYPES,
   OTHER_PROCEDURE,
-  dentitionOf,
   toCents,
   toothInfo,
   type Condition,
-  type Dentition,
   type PaymentMethod,
 } from '@clinic/shared';
 import { buildChart, type ToothState } from '../domain/chart';
+import { classificationOf } from '../domain/classification';
 import { nowLocal } from '../domain/format';
 import { resolveProcedureType, type ProcedureTypeInput } from '../domain/procedureType';
 import { ProcedureTypeField } from './ProcedureTypeField';
 import { usePatientBundle } from '../hooks/useData';
 import { createProcedure } from '../services/procedureService';
-import { ConditionLegend, Odontogram } from './Odontogram';
+import { DentalChart } from './DentalChart';
+import { Icon } from './Icon';
+import { ConditionLegend } from './Odontogram';
 import { PatientPicker } from './PatientPicker';
 
 interface Props {
@@ -49,7 +50,6 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
   const [paidNow, setPaidNow] = useState('');
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [remarks, setRemarks] = useState('');
-  const [dentition, setDentition] = useState<Dentition>('permanent');
   const [picks, setPicks] = useState<Map<number, ToothPick>>(new Map());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -63,6 +63,7 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
   }, [chart, picks]);
   const selected = useMemo(() => new Set(picks.keys()), [picks]);
   const isPast = date !== now.date;
+  const classification = bundle ? classificationOf(bundle.patient).value : null;
 
   function toggleTooth(tooth: number) {
     setPicks((prev) => {
@@ -154,18 +155,14 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
 
       <fieldset className="field teeth-field">
         <legend>Teeth affected <small className="muted">(tap teeth on the chart; optional)</small></legend>
-        <div className="row wrap between">
-          <div className="seg" role="group" aria-label="Dentition">
-            {(['permanent', 'primary'] as const).map((d) => (
-              <button type="button" key={d} className={dentition === d ? 'on' : ''} aria-pressed={dentition === d} onClick={() => setDentition(d)}>
-                {d === 'permanent' ? 'Adult' : 'Child'}
-              </button>
-            ))}
-          </div>
-          {!patientId && <small className="muted">Pick a patient to see their current chart.</small>}
-        </div>
-        <Odontogram dentition={dentition} chart={display} selected={selected} onToothClick={toggleTooth} />
-        <ConditionLegend />
+        {classification ? (
+          <>
+            <DentalChart classification={classification} chart={display} selected={selected} onToothClick={toggleTooth} />
+            <ConditionLegend />
+          </>
+        ) : (
+          <small className="muted">Pick a patient to see their chart.</small>
+        )}
         {picks.size > 0 && (
           <div className="pick-list">
             {[...picks].sort(([a], [b]) => a - b).map(([tooth, p]) => (
@@ -184,17 +181,16 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
                   value={p.remarks}
                   onChange={(e) => setPicks((prev) => new Map(prev).set(tooth, { ...p, remarks: e.target.value }))}
                 />
-                <button type="button" className="btn ghost icon" aria-label={`Remove tooth ${tooth}`} onClick={() => toggleTooth(tooth)}>✕</button>
+                <button type="button" className="btn ghost icon" aria-label={`Remove tooth ${tooth}`} onClick={() => toggleTooth(tooth)}><Icon name="x" /></button>
               </div>
             ))}
           </div>
         )}
-        {[...picks.keys()].some((t) => dentitionOf(t) !== dentition) && <small className="muted">Some selected teeth are on the other chart.</small>}
       </fieldset>
 
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="row form-actions">
-        <button className="btn primary" disabled={saving || !patientId}>{saving ? 'Adding procedure…' : 'Add procedure'}</button>
+      <div className="form-actions">
+        <button className="btn primary" disabled={saving || !patientId}>{saving ? 'Adding record…' : 'Add record'}</button>
         <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>
       </div>
     </form>

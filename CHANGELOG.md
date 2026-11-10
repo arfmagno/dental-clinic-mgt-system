@@ -4,6 +4,24 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
+### Added
+- **Dental classification** per patient: Pediatric (primary teeth), Mixed dentition, or Adult (permanent teeth). The dentist chooses it on the patient form; until then it is suggested from age (under 6 primary, 6–12 mixed, 13+ adult) and shown as "(by age)". The patient page, the Add Record form and the PDF show only that patient's chart (both charts for mixed). Server migration `20261111090001-dental-classification.sql` (additive column `patients.dentalClassification`, default `''`).
+- **Transactions** page (`/transactions`): pick a patient, see their outstanding total and every unsettled record, settle one (any amount, defaults to its balance) or select several and settle them in full at once, and see their payment history. Settling adds payment rows; balances stay derived (no new table).
+- **In-app pop-ups and notifications:** confirmations are app dialogs with descriptive buttons (no browser `confirm`), and a short notification confirms each action ("Record added", "Payment recorded", "Settled 3 records · ₱…").
+- **Phone layout:** bottom tab bar (Home, Patients, Add, Records, Transactions) with an Add sheet, dialogs as bottom sheets, the records table as cards, 16px inputs (no zoom on focus), safe-area insets.
+- Tests: classification, settling, pop-ups and notifications, the Transactions flow, the new migration; end-to-end phone layout, classification charts and settling.
+
+### Changed
+- Refreshed, more modern look (new colour tokens, icons, softer cards, pill navigation).
+- Navigation reads Home, Patients, Add Patient, Add Record, Records, Transactions; "procedure" is called a "record" in buttons and titles (`/records/new`; `/procedures/new` still works).
+- Action buttons are short (Edit, Delete, Remove, Pay, Export); descriptive labels stay on the Save/Cancel buttons of pop-ups.
+- Light mode by default, switched with a single dark-mode toggle (no "match device" option).
+- Patient page: "Dental Records" heading; each record shows a "Payment history" label.
+- Dashboard: no Patients / Outstanding balance cards; the outstanding balance moved to Records.
+
+### Removed
+- The Lock button in the navigation bar. The PIN is still asked for in every new session, and "Hand to patient" is on the Add Patient page.
+
 ## [0.3.0] - 2026-11-11
 
 ### Added

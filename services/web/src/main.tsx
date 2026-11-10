@@ -3,12 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from './App';
 import { isDesktop } from './services/desktop';
-import { applyTheme, watchSystemTheme } from './services/theme';
+import { applyTheme } from './services/theme';
 import './styles.css';
 
-// Apply the saved light/dark choice before the first paint, and follow the device when set to "system".
+// Apply the saved theme (light unless dark was chosen) before the first paint.
 applyTheme();
-watchSystemTheme();
 
 // Registers the service worker that caches the whole app for offline use and applies updates.
 // Not needed in the desktop app, which already loads every file from disk.

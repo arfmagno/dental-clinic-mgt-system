@@ -6,11 +6,11 @@ test('offline by default, connect to sync, keep working offline, reconnect, soft
   test.setTimeout(120_000);
   await createStaffPin(page);
   await addPatient(page, { first: 'Sync', last: 'Tester', phone: '0917 000 1111', address: '1 Rizal Ave, Manila' });
-  await page.getByRole('button', { name: '+ Add procedure' }).click();
+  await page.getByRole('button', { name: 'Add Record' }).click();
   await page.locator('.modal').getByLabel(/^Type of procedure/).selectOption('Cleaning (Prophylaxis)');
   await page.locator('.modal').getByLabel('Cost (₱)').fill('1200');
   await page.locator('.modal').getByLabel('Amount received now (₱)').fill('1200');
-  await page.locator('.modal').getByRole('button', { name: 'Add procedure' }).click();
+  await page.locator('.modal').getByRole('button', { name: 'Add record' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
   const mine = (rows: Awaited<ReturnType<typeof serverRows>>) => rows.filter((r) => r.table === 'patients' && r.row.lastName === 'Tester');
@@ -58,8 +58,8 @@ test('offline by default, connect to sync, keep working offline, reconnect, soft
   await expect.poll(async () => (await walkin())?.row.isDeleted, { timeout: 20_000 }).toBe(false);
 
   // delete is soft and syncs
-  await page.getByRole('button', { name: 'Delete patient' }).click();
-  await page.locator('.modal').getByRole('button', { name: 'Delete patient' }).click();
+  await page.locator('.profile').getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Delete patient?' }).getByRole('button', { name: 'Delete patient' }).click();
   await expect(page).toHaveURL(/\/patients$/);
   await expect.poll(async () => (await walkin())?.row.isDeleted, { timeout: 20_000 }).toBe(true);
 });
@@ -77,7 +77,7 @@ test('patient PDF export produces a PDF', async ({ page }) => {
       return orig(b);
     };
   });
-  await page.getByRole('button', { name: 'Export PDF' }).click();
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
   await Promise.race([download, popup, page.waitForFunction(() => (window as unknown as { capturedPdf?: Blob }).capturedPdf, null, { timeout: 15_000 })]);
   const head = await page.evaluate(async () => {
     const b = (window as unknown as { capturedPdf?: Blob }).capturedPdf;

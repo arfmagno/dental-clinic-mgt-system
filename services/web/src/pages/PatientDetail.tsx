@@ -1,32 +1,36 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { CONDITION_LABEL, PAYMENT_METHOD_LABEL, nationalityOf, toCents, toothInfo, type Dentition, type Procedure } from '@clinic/shared';
-import { ConditionLegend, Odontogram } from '../components/Odontogram';
+import { CONDITION_LABEL, DENTAL_CLASSIFICATION_LABEL, PAYMENT_METHOD_LABEL, nationalityOf, toCents, toothInfo, type Payment, type Procedure } from '@clinic/shared';
+import { DentalChart } from '../components/DentalChart';
+import { useFeedback } from '../components/Feedback';
+import { Icon } from '../components/Icon';
 import { Modal } from '../components/Modal';
+import { ConditionLegend } from '../components/Odontogram';
 import { PatientForm } from '../components/PatientForm';
 import { PaymentForm } from '../components/PaymentForm';
 import { ProcedureForm } from '../components/ProcedureForm';
 import { ProcedureTypeField } from '../components/ProcedureTypeField';
 import { resolveProcedureType, splitProcedureType } from '../domain/procedureType';
 import { buildChart, type ToothState } from '../domain/chart';
+import { classificationOf } from '../domain/classification';
 import { ageOf, formalName, formatAddress, formatDate, formatMoney, formatTime } from '../domain/format';
 import { usePatientBundle } from '../hooks/useData';
 import { deletePatient, savePatient, type ContactInput, type PatientFields } from '../services/patientService';
 import { deletePayment, deleteProcedure, updateProcedure } from '../services/procedureService';
 
 type ModalState =
-  | { kind: 'edit' | 'procedure' | 'delete' }
+  | { kind: 'edit' | 'record' }
   | { kind: 'payment'; procedure: Procedure; balanceCents: number }
-  | { kind: 'editProcedure'; procedure: Procedure }
+  | { kind: 'editRecord'; procedure: Procedure }
   | null;
 
 export function PatientDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { notify, confirm } = useFeedback();
   const bundle = usePatientBundle(id);
   const [modal, setModal] = useState<ModalState>(null);
   const [asOf, setAsOf] = useState<string | undefined>();
-  const [dentition, setDentition] = useState<Dentition>('permanent');
   const [exporting, setExporting] = useState(false);
 
   const chart = useMemo(() => (bundle ? buildChart(bundle.records, bundle.entries, asOf) : new Map<number, ToothState>()), [bundle, asOf]);
@@ -43,6 +47,7 @@ export function PatientDetail() {
   const { patient, contacts, procedures, payments, paid, records, entries } = bundle;
   const name = formalName(patient);
   const age = ageOf(patient.birthDate);
+  const classification = classificationOf(patient);
   const balanceOf = (p: Procedure) => p.costCents - (paid.get(p.id) ?? 0);
   const balance = procedures.reduce((s, p) => s + balanceOf(p), 0);
   const lastVisit = procedures[0]?.date ?? '';
@@ -53,7 +58,7 @@ export function PatientDetail() {
 
   const toFields = (): PatientFields => {
     const { id: _i, createdAt: _c, updatedAt: _u, isDeleted: _d, ...fields } = patient;
-    return fields;
+    return { dentalClassification: '', ...fields };
   };
   const toContacts = (): ContactInput[] => contacts.map((c) => ({ id: c.id, type: c.type, value: c.value, label: c.label, isPrimary: c.isPrimary }));
 
@@ -62,69 +67,117 @@ export function PatientDetail() {
     try {
       const { exportPatientPdf } = await import('../services/pdfService'); // loaded on demand to keep startup light
       await exportPatientPdf(bundle!, import.meta.env.VITE_CLINIC_NAME ?? 'Dental Clinic');
+      notify('PDF exported');
+    } catch {
+      notify('Could not export the PDF', 'error');
     } finally {
       setExporting(false);
     }
   }
 
+  async function removePatient() {
+    const ok = await confirm({
+      title: 'Delete patient?',
+      message: <><strong>{name}</strong> will be removed from the patient list. Their records are kept (soft delete) and are not shown.</>,
+      confirmLabel: 'Delete patient',
+      danger: true,
+    });
+    if (!ok) return;
+    await deletePatient(patient.id);
+    notify('Patient deleted');
+    nav('/patients', { replace: true });
+  }
+
+  async function removeRecord(p: Procedure) {
+    const ok = await confirm({
+      title: 'Delete this record?',
+      message: <><strong>{p.type}</strong> on {formatDate(p.date)}, with its payments and dental chart entries, will be deleted.</>,
+      confirmLabel: 'Delete record',
+      danger: true,
+    });
+    if (!ok) return;
+    await deleteProcedure(p.id);
+    if (asOf && recordOf(p.id)?.id === asOf) setAsOf(undefined);
+    notify('Record deleted');
+  }
+
+  async function removePayment(y: Payment) {
+    const ok = await confirm({
+      title: 'Remove payment?',
+      message: <>The {formatMoney(y.amountCents)} payment of {formatDate(y.paidAt)} will be removed and the balance goes back up.</>,
+      confirmLabel: 'Remove payment',
+      danger: true,
+    });
+    if (!ok) return;
+    await deletePayment(y.id);
+    notify('Payment removed');
+  }
+
   return (
     <div className="stack">
-      <div className="row between wrap">
-        <Link to="/patients" className="muted">← Patients</Link>
-        <div className="row wrap">
-          <button className="btn primary" onClick={() => setModal({ kind: 'procedure' })}>+ Add procedure</button>
-          <button className="btn" onClick={() => setModal({ kind: 'edit' })}>Edit patient</button>
-          <button className="btn" onClick={exportPdf} disabled={exporting}>{exporting ? 'Preparing PDF…' : 'Export PDF'}</button>
-          <button className="btn danger" onClick={() => setModal({ kind: 'delete' })}>Delete patient</button>
-        </div>
-      </div>
+      <Link to="/patients" className="back-link"><Icon name="back" size={18} /> Patients</Link>
 
       <section className="card profile">
-        <div className="avatar xl">{patient.photo ? <img src={patient.photo} alt={name} /> : <span aria-hidden>👤</span>}</div>
-        <div className="grow stack tight">
-          <h1>{name}</h1>
-          <dl className="facts">
-            <div><dt>Age</dt><dd>{age === null ? '—' : `${age}${patient.birthDate ? ` (b. ${formatDate(patient.birthDate)})` : ''}`}</dd></div>
-            <div><dt>Civil status</dt><dd>{patient.civilStatus || '—'}</dd></div>
-            <div><dt>Citizenship</dt><dd>{nationalityOf(patient.citizenshipCode) || '—'}</dd></div>
-            <div><dt>Occupation</dt><dd>{patient.occupation || '—'}</dd></div>
-            <div><dt>Last visit</dt><dd>{lastVisit ? formatDate(lastVisit) : 'No visits yet'}</dd></div>
-            <div><dt>Outstanding balance</dt><dd className={balance > 0 ? 'owed strong' : 'strong'}>{formatMoney(balance)}</dd></div>
-            <div className="wide">
-              <dt>Contacts</dt>
-              <dd>
-                {contacts.length === 0 ? '—' : (
-                  <ul className="contact-list">
-                    {contacts.map((c) => (
-                      <li key={c.id}>
-                        <span className="badge">{c.type}</span> {c.value}
-                        {c.label && <span className="muted"> ({c.label})</span>}
-                        {c.isPrimary && contacts.length > 1 && <span className="badge primary-badge">primary</span>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </dd>
-            </div>
-            <div className="wide"><dt>Address</dt><dd>{formatAddress(patient) || '—'}</dd></div>
-            {patient.remarks && <div className="wide"><dt>Remarks</dt><dd className="pre">{patient.remarks}</dd></div>}
-          </dl>
+        <div className="profile-head">
+          <div className="avatar xl">{patient.photo ? <img src={patient.photo} alt={name} /> : <span aria-hidden>👤</span>}</div>
+          <div className="grow">
+            <h1>{name}</h1>
+            <p className="muted">{[age !== null && `${age} yrs`, nationalityOf(patient.citizenshipCode)].filter(Boolean).join(' · ')}</p>
+          </div>
         </div>
+        <div className="actions">
+          <button className="btn primary" onClick={() => setModal({ kind: 'record' })}><Icon name="plus" size={18} /> Add Record</button>
+          <button className="btn" onClick={() => setModal({ kind: 'edit' })}><Icon name="edit" size={18} /> Edit</button>
+          <button className="btn" onClick={exportPdf} disabled={exporting}><Icon name="download" size={18} /> {exporting ? 'Exporting…' : 'Export'}</button>
+          <button className="btn danger" onClick={removePatient}><Icon name="trash" size={18} /> Delete</button>
+        </div>
+        <dl className="facts">
+          <div><dt>Date of birth</dt><dd>{patient.birthDate ? formatDate(patient.birthDate) : '—'}</dd></div>
+          <div><dt>Civil status</dt><dd>{patient.civilStatus || '—'}</dd></div>
+          <div><dt>Citizenship</dt><dd>{nationalityOf(patient.citizenshipCode) || '—'}</dd></div>
+          <div><dt>Occupation</dt><dd>{patient.occupation || '—'}</dd></div>
+          <div><dt>Dental classification</dt><dd>{DENTAL_CLASSIFICATION_LABEL[classification.value]}{classification.suggested && <span className="muted small"> (by age)</span>}</dd></div>
+          <div><dt>Last visit</dt><dd>{lastVisit ? formatDate(lastVisit) : 'No visits yet'}</dd></div>
+          <div>
+            <dt>Outstanding balance</dt>
+            <dd className={balance > 0 ? 'owed strong' : 'strong'}>
+              {formatMoney(balance)}
+              {balance > 0 && <> · <Link to={`/transactions?patientId=${patient.id}`}>Settle</Link></>}
+            </dd>
+          </div>
+          <div className="wide">
+            <dt>Contacts</dt>
+            <dd>
+              {contacts.length === 0 ? '—' : (
+                <ul className="contact-list">
+                  {contacts.map((c) => (
+                    <li key={c.id}>
+                      <span className="badge">{c.type}</span> {c.value}
+                      {c.label && <span className="muted"> ({c.label})</span>}
+                      {c.isPrimary && contacts.length > 1 && <span className="badge primary-badge">primary</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </dd>
+          </div>
+          <div className="wide"><dt>Address</dt><dd>{formatAddress(patient) || '—'}</dd></div>
+          {patient.remarks && <div className="wide"><dt>Remarks</dt><dd className="pre">{patient.remarks}</dd></div>}
+        </dl>
       </section>
 
       <section className="card stack">
         <div className="row between wrap">
-          <h2>Dental chart {asOf && <small className="muted">· as of {formatDate(records.find((r) => r.id === asOf)?.recordedAt ?? '')}</small>}</h2>
-          <div className="row wrap">
-            {asOf && <button className="btn" onClick={() => setAsOf(undefined)}>Show current chart</button>}
-            <div className="seg" role="group" aria-label="Dentition">
-              {(['permanent', 'primary'] as const).map((d) => (
-                <button key={d} className={dentition === d ? 'on' : ''} aria-pressed={dentition === d} onClick={() => setDentition(d)}>{d === 'permanent' ? 'Adult' : 'Child'}</button>
-              ))}
-            </div>
+          <div>
+            <h2>Dental chart</h2>
+            <p className="muted small">
+              {DENTAL_CLASSIFICATION_LABEL[classification.value]}
+              {asOf && <> · as of {formatDate(records.find((r) => r.id === asOf)?.recordedAt ?? '')}</>}
+            </p>
           </div>
+          {asOf && <button className="btn sm" onClick={() => setAsOf(undefined)}>Current</button>}
         </div>
-        <Odontogram dentition={dentition} chart={chart} />
+        <DentalChart classification={classification.value} chart={chart} />
         <ConditionLegend />
         {chart.size > 0 && (
           <ul className="tooth-notes">
@@ -139,9 +192,9 @@ export function PatientDetail() {
       </section>
 
       <section className="stack">
-        <h2>Procedures &amp; dental records</h2>
+        <h2 className="section-title">Dental Records</h2>
         {procedures.length === 0 ? (
-          <p className="card muted">No procedures recorded yet.</p>
+          <p className="card muted">No records yet.</p>
         ) : (
           procedures.map((p) => {
             const teeth = teethOf(p.id);
@@ -150,15 +203,16 @@ export function PatientDetail() {
             const pays = paymentsOf(p.id);
             return (
               <article key={p.id} className={`card proc ${asOf && rec?.id === asOf ? 'selected' : ''}`}>
-                <div className="row between wrap">
-                  <div>
-                    <strong>{p.type}</strong>
-                    <div className="muted small">{formatDate(p.date)} {formatTime(p.time)}</div>
+                <div className="proc-head">
+                  <div className="grow">
+                    <strong className="proc-type">{p.type}</strong>
+                    <div className="muted small">{formatDate(p.date)} · {formatTime(p.time)}</div>
                   </div>
-                  <div className="right small">
-                    <div>Cost {formatMoney(p.costCents)} · Paid {formatMoney(paid.get(p.id) ?? 0)}</div>
-                    <div className={bal > 0 ? 'owed strong' : 'ok strong'}>{bal > 0 ? `Balance ${formatMoney(bal)}` : bal < 0 ? `Credit ${formatMoney(-bal)}` : 'Settled'}</div>
-                  </div>
+                  <span className={`pill ${bal > 0 ? 'owed' : 'ok'}`}>{bal > 0 ? `Balance ${formatMoney(bal)}` : bal < 0 ? `Credit ${formatMoney(-bal)}` : 'Settled'}</span>
+                </div>
+                <div className="money-row small">
+                  <span>Cost <strong>{formatMoney(p.costCents)}</strong></span>
+                  <span>Paid <strong>{formatMoney(paid.get(p.id) ?? 0)}</strong></span>
                 </div>
                 {teeth.length > 0 && (
                   <div className="chips">
@@ -166,35 +220,32 @@ export function PatientDetail() {
                   </div>
                 )}
                 {p.remarks && <p className="small pre">{p.remarks}</p>}
-                {pays.length > 0 && (
-                  <table className="table mini">
-                    <caption className="sr-only">Payments for {p.type}</caption>
-                    <tbody>
+                <div className="payments">
+                  <h3 className="label">Payment history</h3>
+                  {pays.length === 0 ? (
+                    <p className="muted small">No payments yet.</p>
+                  ) : (
+                    <ul className="pay-list">
                       {pays.map((y) => (
-                        <tr key={y.id}>
-                          <td>{formatDate(y.paidAt)} <span className="muted">{formatTime(y.paidAt.slice(11))}</span></td>
-                          <td>{PAYMENT_METHOD_LABEL[y.method]}{y.remarks && <span className="muted small"> · {y.remarks}</span>}</td>
-                          <td className="right">{formatMoney(y.amountCents)}</td>
-                          <td className="right">
-                            <button className="btn ghost danger-text small" aria-label={`Remove payment of ${formatMoney(y.amountCents)}`}
-                              onClick={() => window.confirm(`Remove the ${formatMoney(y.amountCents)} payment?`) && void deletePayment(y.id)}>
-                              Remove
-                            </button>
-                          </td>
-                        </tr>
+                        <li key={y.id}>
+                          <div className="grow">
+                            <div>{formatDate(y.paidAt)} <span className="muted">{formatTime(y.paidAt.slice(11))}</span></div>
+                            <div className="muted small">{PAYMENT_METHOD_LABEL[y.method]}{y.remarks && ` · ${y.remarks}`}</div>
+                          </div>
+                          <strong>{formatMoney(y.amountCents)}</strong>
+                          <button className="btn ghost sm danger-text" aria-label={`Remove payment of ${formatMoney(y.amountCents)}`} onClick={() => void removePayment(y)}>Remove</button>
+                        </li>
                       ))}
-                    </tbody>
-                  </table>
-                )}
-                <div className="row wrap small-actions">
-                  {rec && teeth.length > 0 && (
-                    <button className="btn ghost" onClick={() => (setAsOf(rec.id), window.scrollTo({ top: 0, behavior: 'smooth' }))}>View chart at this point</button>
+                    </ul>
                   )}
-                  {bal > 0 && <button className="btn ghost" onClick={() => setModal({ kind: 'payment', procedure: p, balanceCents: bal })}>Record payment</button>}
-                  <button className="btn ghost" onClick={() => setModal({ kind: 'editProcedure', procedure: p })}>Edit procedure</button>
-                  <button className="btn ghost danger-text" onClick={() => window.confirm('Delete this procedure, its payments and its dental record?') && void deleteProcedure(p.id)}>
-                    Delete procedure
-                  </button>
+                </div>
+                <div className="actions">
+                  {bal > 0 && <button className="btn sm primary" onClick={() => setModal({ kind: 'payment', procedure: p, balanceCents: bal })}>Pay</button>}
+                  {rec && teeth.length > 0 && (
+                    <button className="btn sm" onClick={() => (setAsOf(rec.id), window.scrollTo({ top: 0, behavior: 'smooth' }))}><Icon name="eye" size={16} /> Chart</button>
+                  )}
+                  <button className="btn sm" onClick={() => setModal({ kind: 'editRecord', procedure: p })}><Icon name="edit" size={16} /> Edit</button>
+                  <button className="btn sm danger" onClick={() => void removeRecord(p)}><Icon name="trash" size={16} /> Delete</button>
                 </div>
               </article>
             );
@@ -212,43 +263,31 @@ export function PatientDetail() {
             onSubmit={async (f, c) => {
               await savePatient(patient.id, f, c);
               close();
+              notify('Patient updated');
             }}
           />
         </Modal>
       )}
-      {modal?.kind === 'procedure' && (
-        <Modal title={`Add procedure · ${name}`} onClose={close} wide>
-          <ProcedureForm patientId={patient.id} onSaved={() => (close(), setAsOf(undefined))} onCancel={close} />
+      {modal?.kind === 'record' && (
+        <Modal title={`Add record · ${name}`} onClose={close} wide>
+          <ProcedureForm patientId={patient.id} onSaved={() => (close(), setAsOf(undefined), notify('Record added'))} onCancel={close} />
         </Modal>
       )}
       {modal?.kind === 'payment' && (
         <Modal title={`Record payment · ${modal.procedure.type}`} onClose={close}>
-          <PaymentForm procedureId={modal.procedure.id} balanceCents={modal.balanceCents} onDone={close} />
+          <PaymentForm procedureId={modal.procedure.id} balanceCents={modal.balanceCents} onDone={(saved) => (close(), saved && notify('Payment recorded'))} />
         </Modal>
       )}
-      {modal?.kind === 'editProcedure' && (
-        <Modal title="Edit procedure" onClose={close}>
-          <EditProcedure procedure={modal.procedure} onDone={close} />
-        </Modal>
-      )}
-      {modal?.kind === 'delete' && (
-        <Modal title="Delete patient?" onClose={close}>
-          <div className="stack">
-            <p>
-              <strong>{name}</strong> will be removed from the patient list. Their records are kept (soft delete) and are not shown.
-            </p>
-            <div className="row form-actions">
-              <button className="btn danger" onClick={async () => (await deletePatient(patient.id), nav('/patients', { replace: true }))}>Delete patient</button>
-              <button className="btn" onClick={close}>Cancel</button>
-            </div>
-          </div>
+      {modal?.kind === 'editRecord' && (
+        <Modal title="Edit record" onClose={close}>
+          <EditProcedure procedure={modal.procedure} onDone={(saved) => (close(), saved && notify('Record updated'))} />
         </Modal>
       )}
     </div>
   );
 }
 
-function EditProcedure({ procedure: p, onDone }: { procedure: Procedure; onDone(): void }) {
+function EditProcedure({ procedure: p, onDone }: { procedure: Procedure; onDone(saved: boolean): void }) {
   const [typeInput, setTypeInput] = useState(() => splitProcedureType(p.type));
   const type = resolveProcedureType(typeInput);
   const [date, setDate] = useState(p.date);
@@ -264,7 +303,7 @@ function EditProcedure({ procedure: p, onDone }: { procedure: Procedure; onDone(
     setSaving(true);
     try {
       await updateProcedure(p.id, { type, date, time, costCents: toCents(cost), remarks });
-      onDone();
+      onDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save');
       setSaving(false);
@@ -277,13 +316,13 @@ function EditProcedure({ procedure: p, onDone }: { procedure: Procedure; onDone(
         <label className="field"><span>Date</span><input required type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
         <label className="field"><span>Time</span><input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>
       </div>
-      <label className="field"><span>Cost (₱)</span><input type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} /></label>
+      <label className="field"><span>Cost (₱)</span><input type="number" min="0" step="0.01" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} /></label>
       <label className="field"><span>Remarks</span><textarea rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} /></label>
-      <small className="muted">Payments are recorded separately. Teeth recorded with this procedure can't be edited here; delete and re-add the procedure to change them.</small>
+      <small className="muted">Payments are recorded separately. Teeth recorded with this record can't be edited here; delete and re-add the record to change them.</small>
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="row form-actions">
-        <button className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Save procedure'}</button>
-        <button type="button" className="btn" onClick={onDone}>Cancel</button>
+      <div className="form-actions">
+        <button className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Save record'}</button>
+        <button type="button" className="btn" onClick={() => onDone(false)}>Cancel</button>
       </div>
     </form>
   );

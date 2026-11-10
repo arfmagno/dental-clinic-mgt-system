@@ -121,6 +121,33 @@ export async function addPayment(procedureId: string, input: PaymentInput): Prom
   });
 }
 
+/**
+ * Settles records in full: one payment per record for exactly its remaining balance, all with the
+ * same method and date. Balances are read inside the transaction, so records settled meanwhile
+ * (here or by a sync) are skipped rather than overpaid.
+ */
+export async function settleProcedures(
+  procedureIds: string[],
+  input: Omit<PaymentInput, 'amountCents'>,
+): Promise<{ count: number; totalCents: number }> {
+  validatePayment({ ...input, amountCents: 1 });
+  return db.transaction('rw', db.procedures, db.payments, async () => {
+    let count = 0;
+    let totalCents = 0;
+    for (const id of new Set(procedureIds)) {
+      const procedure = await db.procedures.get(id);
+      if (!procedure || procedure.isDeleted) throw new Error('Record not found');
+      const paid = (await db.payments.where('procedureId').equals(id).toArray()).filter((p) => !p.isDeleted).reduce((s, p) => s + p.amountCents, 0);
+      const balance = procedure.costCents - paid;
+      if (balance <= 0) continue;
+      await createRow(db.payments, { procedureId: id, amountCents: balance, method: input.method, paidAt: input.paidAt, remarks: input.remarks.trim() });
+      count++;
+      totalCents += balance;
+    }
+    return { count, totalCents };
+  });
+}
+
 export async function deletePayment(id: string): Promise<void> {
   await softDeleteRow(db.payments, id);
 }

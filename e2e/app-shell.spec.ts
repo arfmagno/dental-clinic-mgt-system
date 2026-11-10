@@ -12,24 +12,25 @@ test('first launch asks for a staff PIN; mismatches are refused', async ({ page 
   await page.getByLabel('Repeat PIN').fill(PIN);
   await page.getByRole('button', { name: 'Create PIN' }).click();
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
-  for (const tile of ['Add patient', 'Add procedure', 'Find patient', 'All records']) {
+  for (const tile of ['Add Patient', 'Add Record', 'Find Patient', 'Transactions']) {
     await expect(page.locator('.tile', { hasText: tile })).toBeVisible();
   }
   await expect(page.locator('.sync .chip')).toHaveText(/^\s*Offline/); // offline is the default
   expect(errors).toEqual([]);
 });
 
-test('lock app hides everything; a new session opens locked; the PIN unlocks', async ({ page, context }) => {
-  await createStaffPin(page);
-  await page.getByRole('button', { name: /Lock/ }).click();
-  await page.getByRole('menuitem', { name: /Lock app/ }).click();
+test('nav: Add Patient / Add Record, no lock button; a new session opens locked; the PIN unlocks', async ({ context }) => {
+  const first = await context.newPage();
+  await createStaffPin(first);
+  const nav = first.getByRole('navigation', { name: 'Main' });
+  await expect(nav.getByRole('link')).toHaveText(['Home', 'Patients', 'Add Patient', 'Add Record', 'Records', 'Transactions']);
+  await expect(first.getByRole('button', { name: /Lock/ })).toHaveCount(0);
+  await first.close();
+
+  const page = await context.newPage(); // a new session (tab) starts locked
+  await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Clinic is locked' })).toBeVisible();
   await expect(page.locator('.topbar')).toHaveCount(0);
-
-  const other = await context.newPage();
-  await other.goto('/');
-  await expect(other.getByRole('heading', { name: 'Clinic is locked' })).toBeVisible();
-  await other.close();
 
   await page.getByLabel('Staff PIN').fill('0000');
   await page.getByRole('button', { name: 'Unlock' }).click();
@@ -39,13 +40,14 @@ test('lock app hides everything; a new session opens locked; the PIN unlocks', a
   await expect(page.locator('.topbar')).toBeVisible();
 });
 
-test('dark mode applies and is remembered', async ({ page }) => {
+test('light by default; dark mode applies and is remembered', async ({ page }) => {
   await createStaffPin(page);
-  await page.getByRole('radio', { name: /Dark/ }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByRole('switch', { name: 'Dark mode' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await page.getByRole('radio', { name: /Light/ }).click();
+  await page.getByRole('switch', { name: 'Dark mode' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });
 

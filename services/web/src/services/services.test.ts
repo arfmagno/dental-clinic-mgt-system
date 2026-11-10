@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test } from 'vitest';
 import { buildDemoData, SYNC_TABLES } from '@clinic/shared';
 import { db } from '../data/db';
 import { emptyPatient, savePatient, type ContactInput } from './patientService';
-import { addPayment, createProcedure, deleteProcedure, updateProcedure } from './procedureService';
+import { addPayment, createProcedure, deleteProcedure, settleProcedures, updateProcedure } from './procedureService';
 import { loadDemoData, removeDemoData } from './demoService';
 
 beforeEach(async () => {
@@ -76,6 +76,48 @@ describe('procedures', () => {
       expect(rows.length).toBeGreaterThan(0);
       expect(rows.every((r) => r.isDeleted && r.dirty === 1)).toBe(true);
     }
+  });
+});
+
+describe('dental classification', () => {
+  test('optional (suggested from age); a chosen one is stored and synced; unknown values are refused', async () => {
+    expect(emptyPatient().dentalClassification).toBe('');
+    const id = await savePatient(undefined, { ...juan(), dentalClassification: 'mixed' }, []);
+    expect(await db.patients.get(id)).toMatchObject({ dentalClassification: 'mixed', dirty: 1 });
+    await expect(savePatient(undefined, { ...juan(), dentalClassification: 'baby' as never }, [])).rejects.toThrow('dental classification');
+  });
+});
+
+describe('settling', () => {
+  const visit = (patientId: string, costCents: number) =>
+    createProcedure({ patientId, type: 'Filling', date: '2026-11-10', time: '09:00', costCents, remarks: '', teeth: [] });
+  const paymentsOf = async (procedureId: string) => (await db.payments.where('procedureId').equals(procedureId).toArray()).filter((p) => !p.isDeleted);
+
+  test('settles each record for exactly its remaining balance, skipping settled ones', async () => {
+    const patientId = await savePatient(undefined, juan(), []);
+    const a = await visit(patientId, 150000);
+    const b = await visit(patientId, 80000);
+    const c = await visit(patientId, 50000);
+    await addPayment(a, { amountCents: 50000, method: 'cash', paidAt: '2026-11-10T09:00', remarks: '' });
+    await addPayment(c, { amountCents: 50000, method: 'cash', paidAt: '2026-11-10T09:00', remarks: '' });
+
+    const result = await settleProcedures([a, b, c, a], { method: 'e_wallet', paidAt: '2026-11-11T10:30', remarks: ' OR 12 ' });
+    expect(result).toEqual({ count: 2, totalCents: 180000 });
+    expect((await paymentsOf(a)).map((p) => p.amountCents).sort()).toEqual([100000, 50000].sort());
+    expect(await paymentsOf(b)).toMatchObject([{ amountCents: 80000, method: 'e_wallet', paidAt: '2026-11-11T10:30', remarks: 'OR 12', dirty: 1 }]);
+    expect(await paymentsOf(c)).toHaveLength(1);
+
+    // settling again does nothing
+    expect(await settleProcedures([a, b, c], { method: 'cash', paidAt: '2026-11-11T10:30', remarks: '' })).toEqual({ count: 0, totalCents: 0 });
+  });
+
+  test('a bad method or date, or an unknown record, settles nothing', async () => {
+    const patientId = await savePatient(undefined, juan(), []);
+    const a = await visit(patientId, 1000);
+    await expect(settleProcedures([a], { method: 'barter' as never, paidAt: '2026-11-11T10:30', remarks: '' })).rejects.toThrow('Choose a payment method');
+    await expect(settleProcedures([a], { method: 'cash', paidAt: 'yesterday', remarks: '' })).rejects.toThrow('A valid payment date is required');
+    await expect(settleProcedures([a, 'missing'], { method: 'cash', paidAt: '2026-11-11T10:30', remarks: '' })).rejects.toThrow('Record not found');
+    expect(await paymentsOf(a)).toHaveLength(0); // all or nothing
   });
 });
 

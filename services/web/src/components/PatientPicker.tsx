@@ -45,7 +45,7 @@ export function PatientPicker({ value, onChange, autoFocus }: Props) {
     return (
       <div className="picked">
         <strong>{selected.name}</strong>
-        <button type="button" className="btn ghost" onClick={() => onChange('')}>Change patient</button>
+        <button type="button" className="btn ghost" onClick={() => onChange('')}>Change</button>
       </div>
     );
   }

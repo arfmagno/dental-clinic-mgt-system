@@ -16,7 +16,7 @@ export async function createStaffPin(page: Page, path = '/') {
 /** Loads the sample patients through the dashboard tool (available in any build via ?demo). */
 export async function loadSampleData(page: Page) {
   await page.goto('/?demo');
-  await page.getByRole('button', { name: 'Load sample data' }).click();
+  await page.getByRole('region', { name: 'Sample data' }).getByRole('button', { name: 'Load', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('Loaded 60 sample patients.');
 }
 
@@ -67,4 +67,9 @@ export function trackErrors(page: Page) {
     if (m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text())) errors.push(m.text());
   });
   return errors;
+}
+
+/** Waits for an in-app notification with this text (earlier ones may still be on screen). */
+export async function expectToast(page: Page, text: string) {
+  await expect(page.getByRole('status').filter({ hasText: text })).toBeVisible();
 }

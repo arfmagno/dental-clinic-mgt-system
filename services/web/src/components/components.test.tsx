@@ -89,7 +89,7 @@ describe('PaymentForm', () => {
     const options = within(screen.getByLabelText('Method')).getAllByRole('option').map((o) => o.textContent);
     expect(options).toEqual(['Cash', 'E-wallet (GCash, Maya…)', 'Bank transfer', 'Other']);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Record payment' }));
-    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(true));
     expect(await db.payments.where('procedureId').equals(procedureId).toArray()).toMatchObject([{ amountCents: 150000, method: 'cash' }]);
   });
 });

@@ -1,37 +1,27 @@
-export type ThemePref = 'system' | 'light' | 'dark';
+export type Theme = 'light' | 'dark';
 const KEY = 'clinic.theme';
-const media = () => window.matchMedia('(prefers-color-scheme: dark)');
 
-export function getThemePref(): ThemePref {
+/** Light unless dark was chosen on this device. */
+export function getTheme(): Theme {
   try {
-    const v = localStorage.getItem(KEY);
-    return v === 'light' || v === 'dark' ? v : 'system';
+    return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light';
   } catch {
-    return 'system';
+    return 'light';
   }
 }
 
-/** Applies a preference to <html data-theme> (CSS reads it) and the browser UI colour. */
-export function applyTheme(pref: ThemePref = getThemePref()) {
-  const dark = pref === 'dark' || (pref === 'system' && media().matches);
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0f172a' : '#0d9488');
+/** Applies a theme to <html data-theme> (CSS reads it) and the browser UI colour. */
+export function applyTheme(theme: Theme = getTheme()) {
+  document.documentElement.dataset.theme = theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#0b1220' : '#ffffff');
 }
 
-export function setThemePref(pref: ThemePref) {
+export function setTheme(theme: Theme) {
   try {
-    if (pref === 'system') localStorage.removeItem(KEY);
-    else localStorage.setItem(KEY, pref);
+    if (theme === 'light') localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, theme);
   } catch {
     /* ignore */
   }
-  applyTheme(pref);
-}
-
-/** Follow OS changes while the preference is "system". */
-export function watchSystemTheme() {
-  const m = media();
-  const onChange = () => getThemePref() === 'system' && applyTheme('system');
-  m.addEventListener('change', onChange);
-  return () => m.removeEventListener('change', onChange);
+  applyTheme(theme);
 }

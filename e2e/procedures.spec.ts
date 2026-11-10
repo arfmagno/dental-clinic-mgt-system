@@ -1,6 +1,6 @@
 // Procedures: patient picker, type list with "Other", defaults, teeth, payments (no card/HMO), records.
 import { expect, test, type Page } from '@playwright/test';
-import { addPatient, createStaffPin, trackErrors } from './helpers';
+import { addPatient, createStaffPin, expectToast, trackErrors } from './helpers';
 
 const todayLocal = (page: Page) =>
   page.evaluate(() => {
@@ -15,8 +15,9 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('patient picker opens, filters, closes on Escape / outside click / pick', async ({ page }) => {
-  await page.goto('/procedures/new');
-  const add = page.locator('form').getByRole('button', { name: 'Add procedure' });
+  await page.goto('/records/new');
+  await expect(page.getByRole('heading', { name: 'Add Record' })).toBeVisible();
+  const add = page.locator('form').getByRole('button', { name: 'Add record' });
   await expect(add).toBeDisabled(); // a procedure needs a patient
   const search = page.getByRole('combobox', { name: 'Search patient' });
   await search.fill('zzzz');
@@ -34,9 +35,9 @@ test('patient picker opens, filters, closes on Escape / outside click / pick', a
   await expect(add).toBeEnabled();
 });
 
-test('add procedure: defaults to now, teeth follow the type, first payment, no card/HMO', async ({ page }) => {
+test('add record: defaults to now, teeth follow the type, first payment, no card/HMO', async ({ page }) => {
   const errors = trackErrors(page);
-  await page.getByRole('button', { name: '+ Add procedure' }).click();
+  await page.getByRole('button', { name: 'Add Record' }).click();
   const modal = page.locator('.modal');
   await expect(modal.getByLabel('Date *')).toHaveValue(await todayLocal(page));
   await expect(modal.getByLabel('Time')).toHaveValue(/^\d\d:\d\d$/);
@@ -49,15 +50,18 @@ test('add procedure: defaults to now, teeth follow the type, first payment, no c
   await modal.getByLabel('Amount received now (₱)').fill('500');
   const methods = await modal.getByLabel('Payment method').locator('option').allTextContents();
   expect(methods).toEqual(['Cash', 'E-wallet (GCash, Maya…)', 'Bank transfer', 'Other']);
-  await modal.getByRole('button', { name: 'Add procedure' }).click();
+  await modal.getByRole('button', { name: 'Add record' }).click();
   await expect(modal).toHaveCount(0);
+  await expectToast(page, 'Record added');
 
   await expect(page.getByText('16 · Cavity filled')).toBeVisible();
   await expect(page.getByText('17 · Cavity filled')).toBeVisible();
   const proc = page.locator('article.proc').first();
   await expect(proc).toContainText('Balance ₱1,000.00');
 
-  await proc.getByRole('button', { name: 'Record payment' }).click();
+  await expect(page.getByRole('heading', { name: 'Dental Records' })).toBeVisible();
+  await expect(proc.locator('.label')).toHaveText('Payment history');
+  await proc.getByRole('button', { name: 'Pay', exact: true }).click();
   await expect(page.locator('.modal').getByLabel('Amount received (₱) *')).toHaveValue('1000');
   const payMethods = await page.locator('.modal').getByLabel('Method').locator('option').allTextContents();
   expect(payMethods).not.toContain('Card');
@@ -66,44 +70,52 @@ test('add procedure: defaults to now, teeth follow the type, first payment, no c
   await page.locator('.modal').getByRole('button', { name: 'Record payment' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect(proc).toContainText('Settled');
+  await expectToast(page, 'Payment recorded');
+
+  // removing a payment asks in an in-app pop-up
+  await proc.getByRole('button', { name: /^Remove payment of/ }).first().click();
+  const ask = page.getByRole('alertdialog', { name: 'Remove payment?' });
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await expect(ask).toHaveCount(0);
+  await expect(proc).toContainText('Settled');
   expect(errors).toEqual([]);
 });
 
 test('"Other" asks for the procedure type; the typed type is stored and editable', async ({ page }) => {
-  await page.getByRole('button', { name: '+ Add procedure' }).click();
+  await page.getByRole('button', { name: 'Add Record' }).click();
   const modal = page.locator('.modal');
   await expect(modal.getByLabel('Other type of procedure *')).toHaveCount(0);
   await modal.getByLabel(/^Type of procedure/).selectOption('Other');
   const other = modal.getByLabel('Other type of procedure *');
   await expect(other).toBeVisible();
-  await modal.getByRole('button', { name: 'Add procedure' }).click();
+  await modal.getByRole('button', { name: 'Add record' }).click();
   await expect(modal).toBeVisible(); // blocked until the type is typed
   await other.fill('Gum treatment');
-  await modal.getByRole('button', { name: 'Add procedure' }).click();
+  await modal.getByRole('button', { name: 'Add record' }).click();
   await expect(modal).toHaveCount(0);
-  await expect(page.locator('article.proc strong').first()).toHaveText('Gum treatment');
+  await expect(page.locator('article.proc .proc-type').first()).toHaveText('Gum treatment');
 
-  await page.getByRole('button', { name: 'Edit procedure' }).click();
+  await page.locator('article.proc').getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.locator('.modal').getByLabel(/^Type of procedure/)).toHaveValue('Other');
   await expect(page.locator('.modal').getByLabel('Other type of procedure *')).toHaveValue('Gum treatment');
   await page.locator('.modal').getByLabel('Other type of procedure *').fill('Gum surgery');
-  await page.locator('.modal').getByRole('button', { name: 'Save procedure' }).click();
-  await expect(page.locator('article.proc strong').first()).toHaveText('Gum surgery');
+  await page.locator('.modal').getByRole('button', { name: 'Save record' }).click();
+  await expect(page.locator('article.proc .proc-type').first()).toHaveText('Gum surgery');
 });
 
 test('past-dated procedures are ordered by date; the records table sorts', async ({ page }) => {
   for (const [type, date, tooth] of [['Filling', '', 16], ['Extraction', '2026-01-15', 38]] as const) {
-    await page.getByRole('button', { name: '+ Add procedure' }).click();
+    await page.getByRole('button', { name: 'Add Record' }).click();
     const modal = page.locator('.modal');
     await modal.getByLabel(/^Type of procedure/).selectOption(type);
     if (date) await modal.getByLabel('Date *').fill(date);
     await modal.locator(`g[aria-label^="Tooth ${tooth}:"]`).click();
-    await modal.getByRole('button', { name: 'Add procedure' }).click();
+    await modal.getByRole('button', { name: 'Add record' }).click();
     await expect(modal).toHaveCount(0);
   }
   await expect(page.getByText('38 · Extracted')).toBeVisible();
   await expect(page.locator('g.c-extracted[aria-label^="Tooth 38:"] path.cross')).toHaveCount(1);
-  await expect(page.locator('article.proc strong')).toHaveText(['Filling', 'Extraction']); // newest first
+  await expect(page.locator('article.proc .proc-type')).toHaveText(['Filling', 'Extraction']); // newest first
 
   await page.goto('/records');
   await expect(page.locator('tbody tr')).toHaveCount(2);
