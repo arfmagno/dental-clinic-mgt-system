@@ -1,25 +1,20 @@
 import {
-  BASE_COLUMNS,
   SYNC_TABLES,
-  TABLE_COLUMNS,
-  validateColumns,
   type AnyRow,
   type PullResponse,
   type PushRequest,
   type PushResponse,
   type SyncTable,
 } from '@clinic/shared';
+import { acceptIncomingRow } from '../domain/syncRow.js';
 import type { SqlDriver } from '../infrastructure/db/driver.js';
 import { SyncRepository } from '../repositories/syncRepository.js';
 
-/** A device clock further ahead than this is clamped, so one bad clock cannot win every conflict. */
-const MAX_CLOCK_SKEW_MS = 10 * 60 * 1000;
 const MAX_PULL_LIMIT = 1000;
 
-export class ValidationError extends Error {}
-
 /**
- * Sync rules: validation, last-write-wins conflict resolution, and change feed paging.
+ * Sync use cases: push (row rules in domain/syncRow.ts, last-write-wins in the repository upsert)
+ * and the paged change feed.
  * Knows nothing about HTTP; depends on the repository and the driver port only.
  */
 export class SyncService {
@@ -36,7 +31,7 @@ export class SyncService {
       for (const raw of rows) {
         const id = typeof raw?.id === 'string' ? raw.id : '?';
         try {
-          const row = this.validate(table, raw);
+          const row = acceptIncomingRow(table, raw, this.now());
           const applied = await this.db.transaction(async (tx) => {
             const repo = new SyncRepository(tx);
             return repo.upsertIfNewer(table, row, await repo.nextSeq());
@@ -67,23 +62,4 @@ export class SyncService {
     };
   }
 
-  private validate(table: SyncTable, raw: AnyRow): AnyRow {
-    if (!raw || typeof raw !== 'object') throw new ValidationError('row must be an object');
-    if (typeof raw.id !== 'string' || !raw.id || raw.id.length > 64) throw new ValidationError('invalid id');
-    for (const k of ['createdAt', 'updatedAt'] as const) {
-      if (typeof raw[k] !== 'string' || Number.isNaN(Date.parse(raw[k]))) throw new ValidationError(`invalid ${k}`);
-    }
-    if (typeof raw.isDeleted !== 'boolean') throw new ValidationError('isDeleted must be boolean');
-
-    const allowed = new Set<string>([...BASE_COLUMNS, ...TABLE_COLUMNS[table]]);
-    const row: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(raw)) if (allowed.has(k) && v !== undefined) row[k] = v; // unknown keys dropped
-
-    const invalid = validateColumns(table, row); // vocabularies, dates, money, tooth numbers
-    if (invalid) throw new ValidationError(invalid);
-
-    const ceiling = this.now().getTime() + MAX_CLOCK_SKEW_MS;
-    if (Date.parse(raw.updatedAt) > ceiling) row.updatedAt = new Date(ceiling).toISOString();
-    return row as AnyRow;
-  }
 }

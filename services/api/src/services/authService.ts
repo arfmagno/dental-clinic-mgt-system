@@ -1,26 +1,7 @@
 import crypto from 'node:crypto';
+import { isRole, type Principal } from '../domain/authorization.js';
+import { AuthError } from '../domain/errors.js';
 import type { TokenSigner } from '../infrastructure/auth/tokens.js';
-
-// ---------- Authorization model ----------
-// Authorization is permission-based; roles are just named bundles of permissions.
-// To add a role (e.g. a patient portal), extend this table. Handlers never check roles directly.
-export type Role = 'admin' | 'staff' | 'patient';
-export type Permission = 'sync:pull' | 'sync:push';
-
-export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
-  admin: ['sync:pull', 'sync:push'],
-  staff: ['sync:pull', 'sync:push'],
-  // Future patient portal: patients must only ever see their OWN rows. Do not grant sync:* here;
-  // give patients dedicated, row-scoped endpoints instead (see docs/ARCHITECTURE.md).
-  patient: [],
-};
-
-export interface Principal {
-  id: string;
-  role: Role;
-}
-
-export const can = (p: Principal, permission: Permission) => ROLE_PERMISSIONS[p.role]?.includes(permission) ?? false;
 
 // ---------- Authentication port ----------
 export type Credentials = Record<string, unknown>;
@@ -47,12 +28,6 @@ export class PasswordAuthProvider implements AuthProvider {
 }
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest();
-
-export class AuthError extends Error {
-  constructor(message: string, readonly status: 401 | 429, readonly retryAfterSeconds?: number) {
-    super(message);
-  }
-}
 
 /**
  * Failed-login throttle. In-memory: correct for one instance; move to the database or a shared
@@ -110,7 +85,7 @@ export class AuthService {
   verify(token: string | undefined): Principal | null {
     if (!token) return null;
     const p = this.o.signer.verify(token);
-    if (!p || !(p.role in ROLE_PERMISSIONS)) return null;
-    return { id: p.sub, role: p.role as Role };
+    if (!p || !isRole(p.role)) return null;
+    return { id: p.sub, role: p.role };
   }
 }

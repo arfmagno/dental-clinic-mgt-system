@@ -32,10 +32,11 @@ Each layer depends only on the one below it, and only through a narrow interface
 | Layer | Folder | Responsibility | Must not |
 | --- | --- | --- | --- |
 | Composition root | `index.ts` | Choose and wire concrete implementations | Contain logic |
-| HTTP | `http/` | Parse request, check declared protection, call a service, shape response | Contain business rules or SQL |
-| Services | `services/` | Rules: validation, conflict resolution, authentication, authorization | Know about HTTP or SQL dialects |
+| HTTP | `http/` | `middlewares/` (security headers, auth gate, error mapping), `validators/` (request schemas), `routes/` (parse → call a service → shape response) | Contain business rules or SQL |
+| Services | `services/` | Use cases: push/pull, login, throttling; orchestrate domain rules and repositories | Know about HTTP or SQL dialects |
+| Domain | `domain/` | Pure domain model and rules: roles and permissions, incoming-row rules, domain errors | Do I/O or import anything but `@clinic/shared` |
 | Repositories | `repositories/` | SQL for a table family | Contain rules |
-| Infrastructure | `infrastructure/` | `SqlDriver` port + SQLite adapter, token signing | Be imported by anything except wiring/repositories |
+| Infrastructure | `infrastructure/` | `SqlDriver` port + SQLite adapter, token signing | Be imported by anything except wiring, services and repositories |
 | Config | `config.ts` | The **only** reader of `process.env` | |
 
 `buildApp(deps)` takes its dependencies as arguments, so tests build the whole app against an in-memory database with no mocks.

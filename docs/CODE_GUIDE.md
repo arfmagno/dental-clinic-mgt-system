@@ -8,7 +8,7 @@ A map of the code and recipes for common changes. Read [ARCHITECTURE.md](ARCHITE
 | --- | --- |
 | `npm run dev` | API (`:3001`, auto-restart) + web dev server (`:5173`, proxies `/api`) |
 | `npm run typecheck` | `tsc --noEmit` in every workspace and the e2e folder |
-| `npm test` | Server tests (migrations, sync, security) + web domain tests |
+| `npm test` | Server tests (domain rules, migrations, sync, security) + web domain tests |
 | `npm run build` | Typecheck + production web build with service worker (`services/web/dist`) |
 | `npm start` | Run the server (serves `services/web/dist` if built) |
 | `npm run migrate -w @clinic/server` | Apply pending migrations without starting the server |
@@ -32,10 +32,17 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `seed.ts` | `seedDemo` / `unseedDemo`: shared sample data written through `SyncService.push` |
 | `scripts/` | `new-migration.ts` (`npm run migration:new`), `check-migrations.ts` (part of `npm run lint`), `seed.ts` (`npm run seed`) |
 | `repositories/syncRepository.ts` | `nextSeq`, `upsertIfNewer` (atomic last-write-wins), `changedSince`, `ping` |
-| `services/syncService.ts` | `push` (validate, clamp clocks, per-row savepoints, dependency order) and `pull` (paged global change feed) |
-| `services/authService.ts` | `AuthProvider` port, `PasswordAuthProvider`, `ROLE_PERMISSIONS`, `can`, `LoginThrottle`, `AuthService` |
-| `http/app.ts` | `buildApp(deps)`: security headers, **default-deny auth gate**, error handler, routes, static hosting + SPA fallback |
-| `http/routes/` | `health.ts`, `auth.ts`, `sync.ts`: thin handlers with JSON-schema validation |
+| `domain/authorization.ts` | `Role`, `Permission`, `ROLE_PERMISSIONS`, `Principal`, `isRole`, `can` |
+| `domain/syncRow.ts` | `acceptIncomingRow`: envelope checks, unknown columns dropped, column rules, clock clamp (`MAX_CLOCK_SKEW_MS`) |
+| `domain/errors.ts` | `ValidationError` (→ 400), `AuthError` (→ 401/429) |
+| `domain/domain.test.ts` | Unit tests for the domain rules |
+| `services/syncService.ts` | `push` (domain row rules, per-row savepoints, dependency order) and `pull` (paged global change feed) |
+| `services/authService.ts` | `AuthProvider` port, `PasswordAuthProvider`, `LoginThrottle`, `AuthService` |
+| `http/app.ts` | `buildApp(deps)`: wiring only (middlewares → routes under `/api/v1` → web app) |
+| `http/middlewares/` | `securityHeaders.ts`, `authGate.ts` (**default-deny**, `RouteAuth`, `req.principal`), `errorHandler.ts` (domain errors → status codes) |
+| `http/validators/` | `auth.schema.ts`, `sync.schema.ts`: JSON schemas + request types |
+| `http/routes/` | `health.ts`, `auth.ts`, `sync.ts`: thin handlers |
+| `http/webApp.ts` | Static hosting of the built web app + SPA fallback |
 | `server.test.ts` | Sync-rule and endpoint-security tests (in-memory DB, real HTTP stack via `inject`) |
 | `migrations.test.ts` | File naming, generator, loader (.sql + .ts), runner guarantees, legacy id conversion, each data-moving migration |
 | `seed.test.ts` | Sample data validity and seeding through sync |
@@ -109,10 +116,11 @@ Add it to `CONDITIONS`, `CONDITION_LABEL` and `CONDITION_COLOR` in `shared/src/v
 Add `{ name, condition? }` to `PROCEDURE_TYPES` in `shared/src/vocab.ts`. `condition` is what selected teeth default to for that type. (Procedure type is free text, so existing records are unaffected.)
 
 ### Add an API endpoint
-1. Service method in `services/` (rules, no HTTP).
-2. Route in `http/routes/` with `config: { auth: <'public' | 'any' | Permission> }` and a JSON schema; register it in `http/app.ts`.
-3. New permission? Add it to `Permission` and to the roles that should have it in `ROLE_PERMISSIONS`.
-4. Add a test in `server.test.ts` covering unauthenticated, wrong-role and success cases.
+1. Service method in `services/` (no HTTP); pure rules go in `domain/`.
+2. Request schema + type in `http/validators/`.
+3. Route in `http/routes/` with `config: { auth: <'public' | 'any' | Permission> }` and that schema; register it in `http/app.ts`.
+4. New permission? Add it to `Permission` and to the roles that should have it in `ROLE_PERMISSIONS` (`domain/authorization.ts`).
+5. Add a test in `server.test.ts` covering unauthenticated, wrong-role and success cases.
 
 ### Swap the authentication method
 Implement `AuthProvider.authenticate(credentials): Promise<Principal | null>` (look up a user, verify a hash, validate an OIDC token...) and pass it to `AuthService` in `index.ts`. Routes and permissions are unchanged. Put the user's identity in `Principal.id`.
