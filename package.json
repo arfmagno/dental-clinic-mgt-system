@@ -12,13 +12,15 @@
     "build": "npm run build -w @clinic/web",
     "start": "npm run start -w @clinic/server",
     "typecheck": "npm run typecheck -w @clinic/shared && npm run typecheck -w @clinic/server && npm run typecheck -w @clinic/web && tsc -p e2e",
-    "test": "npm run test -w @clinic/server && npm run test -w @clinic/web",
+    "test": "npm run test -w @clinic/server && npm run test -w @clinic/web && npm run test -w @clinic/desktop",
     "lint": "oxlint --deny-warnings && npm run lint:migrations -w @clinic/server",
     "lint:fix": "oxlint --fix",
     "check": "npm run lint && npm run typecheck && npm test",
     "seed": "npm run seed -w @clinic/server",
     "migration:new": "npm run migration:new -w @clinic/server --",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "desktop": "npm start -w @clinic/desktop",
+    "dist:desktop": "npm run dist -w @clinic/desktop"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",

@@ -1,0 +1,59 @@
+{
+  "name": "@clinic/desktop",
+  "productName": "Dental Clinic",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Dental clinic records, charts and procedures. Works offline.",
+  "author": "Dental Clinic",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "npm run build -w @clinic/web && electron .",
+    "dev": "electron .",
+    "test": "node --test src/router.test.js",
+    "dist": "npm run build -w @clinic/web && electron-builder --win nsis --publish never"
+  },
+  "build": {
+    "appId": "local.dentalclinic.app",
+    "productName": "Dental Clinic",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/main.js",
+      "src/preload.cjs",
+      "src/router.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/dist",
+        "to": "web",
+        "filter": [
+          "**/*",
+          "!sw.js",
+          "!workbox-*.js"
+        ]
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Dental Clinic",
+      "artifactName": "Dental-Clinic-Setup-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0"
+  }
+}

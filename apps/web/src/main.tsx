@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from './App';
+import { isDesktop } from './services/desktop';
 import { applyTheme, watchSystemTheme } from './services/theme';
 import './styles.css';
 
@@ -10,7 +11,8 @@ applyTheme();
 watchSystemTheme();
 
 // Registers the service worker that caches the whole app for offline use and applies updates.
-registerSW({ immediate: true });
+// Not needed in the desktop app, which already loads every file from disk.
+if (!isDesktop) registerSW({ immediate: true });
 
 // Ask the browser not to evict local data (patient records) under storage pressure.
 void navigator.storage?.persist?.();
