@@ -20,7 +20,7 @@ const child = spawn('npm', ['run', 'start', '-w', '@clinic/server'], {
     DATA_DIR: dataDir,
     CLINIC_PASSWORD: process.env.E2E_PASSWORD ?? 'e2e-password',
     AUTH_SECRET: 'e2e-secret-e2e-secret-e2e-secret',
-    WEB_DIR: path.join(root, 'apps', 'web', 'dist'),
+    WEB_DIR: path.join(root, 'services', 'web', 'dist'),
     LOG_LEVEL: 'warn',
   },
 });

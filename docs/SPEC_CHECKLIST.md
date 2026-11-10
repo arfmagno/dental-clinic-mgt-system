@@ -38,7 +38,7 @@ Every requested item, where it lives, and how it was verified. **Unit** = automa
 | 10 | Normalize all databases | migration 002 + Dexie v2: name parts, `patient_addresses`, `payments`, `teeth` FK; codes instead of free text | Unit (server + legacy transforms); migration run on a real v0.1.0 database; **device upgrade run in Edge** on the same v0.1.0 data, then synced with that server: no duplicate patients, payments or procedures, identical payment ids (10/10 checks) |
 | 11 | "No patients yet" list in Add procedure won't close | `PatientPicker.tsx` | E2E (Escape, outside click, pick; re-open on click) |
 | 12 | Light/dark mode configurable | `ThemeToggle.tsx`, `services/theme.ts`, theme variables in `styles.css` | E2E (applies, remembered after reload), Visual |
-| 13 | Clearer folder names (services instead of apps) | planned move: `apps/server → services/api`, `apps/web → services/web`, `packages/shared → shared` | **Pending.** Blocked while the dev server holds the folders open; done as a separate commit |
+| 13 | Clearer folder names (services instead of apps) | `services/api`, `services/web`, `services/desktop`, `shared/` (done in 0.3.0) | Lint, typecheck, all tests and e2e re-run after the move |
 | 14 | Verify everything; ask for design decisions | this file; decisions asked: folders, normalization scope, unlock/sign-in model | — |
 
 ## Change request (v0.3.0)
@@ -54,7 +54,7 @@ Every requested item, where it lives, and how it was verified. **Unit** = automa
 | 7 | SQL migrations as .sql | `20261110090000-initial-schema.sql`; `.ts` only where code is needed | Unit (loader runs .sql and .ts) |
 | 8 | Linting | oxlint, `.oxlintrc.json`, `npm run lint` | Runs clean (0 warnings) |
 | 9 | Tests everywhere: frontend, backend, integration, e2e | Server 23, web 39 (domain, IndexedDB integration, upgrades, components), desktop 4, Playwright 16 | All pass |
-| 10 | Bundled app opened from a shortcut | PWA install (unchanged) **and** Windows installer `apps/desktop` | E2E drives the packaged `.exe` (offline, data kept across launches, sync through the forwarder); installer built. Installing via the NSIS wizard was **not** run in automation |
+| 10 | Bundled app opened from a shortcut | PWA install (unchanged) **and** Windows installer `services/desktop` | E2E drives the packaged `.exe` (offline, data kept across launches, sync through the forwarder); installer built. Installing via the NSIS wizard was **not** run in automation |
 | 11 | Dummy data to examine the app | `shared/demo.ts`, dashboard *Load sample data*, `npm run seed` | Unit (valid, consistent, deterministic), Integration (load/remove), E2E (list with 60 patients) |
 
 ## Design decisions recorded

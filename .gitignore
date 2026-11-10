@@ -1,8 +1,8 @@
 node_modules
 dist
-# runtime data only (not the apps/web/src/data source folder)
+# runtime data only (not the services/web/src/data source folder)
 /data
-/apps/server/data
+/services/api/data
 *.db
 *.db-*
 .env
@@ -11,4 +11,4 @@ dist
 /e2e/.data
 /e2e/.report
 /e2e/.results
-/apps/desktop/release
+/services/desktop/release

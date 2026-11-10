@@ -7,7 +7,7 @@ if not exist node_modules (
   echo Installing dependencies, one moment...
   call npm install || goto :fail
 )
-if not exist apps\web\dist\index.html (
+if not exist services\web\dist\index.html (
   echo Building the app, one moment...
   call npm run build || goto :fail
 )

@@ -7,7 +7,7 @@ All notable changes to this project are documented here. Format based on [Keep a
 ## [0.3.0] - 2026-11-11
 
 ### Added
-- **Windows desktop app** (`apps/desktop`, Electron 45): `npm run dist:desktop` builds `Dental-Clinic-Setup-<version>.exe` (Start menu and desktop shortcuts, per-user, no admin). Serves the web build from `app://clinic` with no network; forwards `/api/*` to the clinic server address entered on the Connect page. The PWA install remains available.
+- **Windows desktop app** (`services/desktop`, Electron 45): `npm run dist:desktop` builds `Dental-Clinic-Setup-<version>.exe` (Start menu and desktop shortcuts, per-user, no admin). Serves the web build from `app://clinic` with no network; forwards `/api/*` to the clinic server address entered on the Connect page. The PWA install remains available.
 - **"Other" procedure type asks for the actual type** (required text box); the typed text is stored as the type and reopens under "Other" when editing.
 - **Sample data:** `shared/demo.ts` builds ~60 deterministic patients with contacts, visits, payments and charted teeth. *Load / Remove sample data* on the dashboard (development builds, or any build with `?demo`); `npm run seed [-- --remove]` on the server (refused in production).
 - **Migration generator:** `npm run migration:new -- <description> [--ts]`.

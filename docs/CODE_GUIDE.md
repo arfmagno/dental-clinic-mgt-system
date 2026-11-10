@@ -7,16 +7,16 @@ A map of the code and recipes for common changes. Read [ARCHITECTURE.md](ARCHITE
 | Command | Does |
 | --- | --- |
 | `npm run dev` | API (`:3001`, auto-restart) + web dev server (`:5173`, proxies `/api`) |
-| `npm run typecheck` | `tsc --noEmit` in all three packages |
+| `npm run typecheck` | `tsc --noEmit` in every workspace and the e2e folder |
 | `npm test` | Server tests (migrations, sync, security) + web domain tests |
-| `npm run build` | Typecheck + production web build with service worker (`apps/web/dist`) |
-| `npm start` | Run the server (serves `apps/web/dist` if built) |
+| `npm run build` | Typecheck + production web build with service worker (`services/web/dist`) |
+| `npm start` | Run the server (serves `services/web/dist` if built) |
 | `npm run migrate -w @clinic/server` | Apply pending migrations without starting the server |
-| `node apps/web/scripts/make-icons.mjs` | Regenerate the PWA icons |
+| `node services/web/scripts/make-icons.mjs` | Regenerate the PWA icons |
 
 Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because v12 ships no prebuilt binary for Node 20.
 
-## Server reference (`apps/server/src`)
+## Server reference (`services/api/src`)
 
 | File | Purpose |
 | --- | --- |
@@ -40,7 +40,7 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `migrations.test.ts` | File naming, generator, loader (.sql + .ts), runner guarantees, legacy id conversion, each data-moving migration |
 | `seed.test.ts` | Sample data validity and seeding through sync |
 
-## Web reference (`apps/web/src`)
+## Web reference (`services/web/src`)
 
 | Folder / file | Purpose |
 | --- | --- |
@@ -69,7 +69,7 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `domain/procedureType.ts` | `splitProcedureType` / `resolveProcedureType`: stored type to list choice + "Other" text and back |
 | `**/*.test.ts(x)` | Vitest: `domain/domain.test.ts` (pure logic), `services/services.test.ts` (services on fake IndexedDB), `data/db.upgrade.test.ts` (device upgrades), `components/components.test.tsx`, `pages/Connect.test.tsx`; setup in `test/setup.ts` |
 
-## Shared reference (`packages/shared/src`)
+## Shared reference (`shared/src`)
 
 | File | Purpose |
 | --- | --- |
@@ -103,10 +103,10 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 Follow [MIGRATIONS.md](MIGRATIONS.md) ("add a column"), then: add it to `PatientFields` defaults in `emptyPatient()` (`patientService.ts`), the form (`PatientForm.tsx`), the detail view (`PatientDetail.tsx`) and the PDF (`pdfService.ts`).
 
 ### Add a new tooth condition
-Add it to `CONDITIONS`, `CONDITION_LABEL` and `CONDITION_COLOR` in `packages/shared/src/vocab.ts`; draw it in `components/Odontogram.tsx` (a `c-<condition>` class on the tooth group plus CSS in `styles.css`) and in `drawTooth` in `pdfService.ts`. Existing data is unaffected. The server accepts it once the shared package is deployed (validation reads the same list).
+Add it to `CONDITIONS`, `CONDITION_LABEL` and `CONDITION_COLOR` in `shared/src/vocab.ts`; draw it in `components/Odontogram.tsx` (a `c-<condition>` class on the tooth group plus CSS in `styles.css`) and in `drawTooth` in `pdfService.ts`. Existing data is unaffected. The server accepts it once the shared package is deployed (validation reads the same list).
 
 ### Add a procedure type
-Add `{ name, condition? }` to `PROCEDURE_TYPES` in `packages/shared/src/vocab.ts`. `condition` is what selected teeth default to for that type. (Procedure type is free text, so existing records are unaffected.)
+Add `{ name, condition? }` to `PROCEDURE_TYPES` in `shared/src/vocab.ts`. `condition` is what selected teeth default to for that type. (Procedure type is free text, so existing records are unaffected.)
 
 ### Add an API endpoint
 1. Service method in `services/` (rules, no HTTP).

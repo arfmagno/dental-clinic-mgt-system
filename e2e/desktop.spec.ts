@@ -6,7 +6,7 @@ import path from 'node:path';
 import { _electron as electron, expect, test, type ElectronApplication } from '@playwright/test';
 import { createStaffPin, PIN, SERVER_PASSWORD, serverRows } from './helpers';
 
-const EXE = path.resolve('apps/desktop/release/win-unpacked/Dental Clinic.exe');
+const EXE = path.resolve('services/desktop/release/win-unpacked/Dental Clinic.exe');
 
 test.skip(process.platform !== 'win32' || !existsSync(EXE), 'Build the desktop app first: npm run dist -w @clinic/desktop');
 

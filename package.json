@@ -4,8 +4,8 @@
   "version": "0.3.0",
   "type": "module",
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "shared",
+    "services/*"
   ],
   "scripts": {
     "dev": "concurrently -n server,web -c blue,green \"npm run dev -w @clinic/server\" \"npm run dev -w @clinic/web\"",

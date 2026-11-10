@@ -48,7 +48,7 @@ npm run migration:new -- <description> [--ts]   # new timestamped migration (see
 
 There are two ways. Both open from an icon with no internet, and both keep records on the computer until sync is switched on.
 
-**A. Windows program (installer).** Build it once with `npm run dist:desktop`. Then run `apps/desktop/release/Dental-Clinic-Setup-0.3.0.exe` on each clinic computer. It adds **Dental Clinic** to the Start menu and the desktop, and needs no administrator rights. To sync, enter the clinic server address (for example `192.168.1.10:3001`) and the password on the Connect page. The installer is not code-signed, so Windows SmartScreen may ask you to confirm (*More info → Run anyway*).
+**A. Windows program (installer).** Build it once with `npm run dist:desktop`. Then run `services/desktop/release/Dental-Clinic-Setup-0.3.0.exe` on each clinic computer. It adds **Dental Clinic** to the Start menu and the desktop, and needs no administrator rights. To sync, enter the clinic server address (for example `192.168.1.10:3001`) and the password on the Connect page. The installer is not code-signed, so Windows SmartScreen may ask you to confirm (*More info → Run anyway*).
 
 **B. Install from the browser (PWA).**
 
@@ -62,12 +62,12 @@ Patient data lives in that device's browser storage until it syncs, so do not cl
 ## Repository layout
 
 ```
-apps/server     Fastify API + SQLite (swappable), migrations, sync, auth, seed script
-apps/web        React PWA: IndexedDB (Dexie), UI, PDF export
-apps/desktop    Electron shell + Windows installer (serves the web build from disk, forwards /api to the clinic server)
-e2e/            Playwright end-to-end specs
-packages/shared Domain types, vocabularies, tooth catalog and outlines, names, validation, sync table definitions
-docs/           Documentation
+services/api      Fastify API + SQLite (swappable), migrations, sync, auth, seed script
+services/web      React PWA: IndexedDB (Dexie), UI, PDF export
+services/desktop  Electron shell + Windows installer (serves the web build from disk, forwards /api to the clinic server)
+e2e/              Playwright end-to-end specs
+shared/           Domain types, vocabularies, tooth catalog and outlines, names, validation, sync table definitions
+docs/             Documentation
 ```
 
 ## Status

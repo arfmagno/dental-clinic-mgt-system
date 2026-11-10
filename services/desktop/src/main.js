@@ -1,6 +1,6 @@
 // Desktop shell (Electron) for Windows: opens the same offline web app in its own window.
 //
-// - The built web app (apps/web/dist) is served from app://clinic/, a private secure origin, so
+// - The built web app (services/web/dist) is served from app://clinic/, a private secure origin, so
 //   IndexedDB, the PIN's Web Crypto and the router work exactly as in the browser, with no
 //   network and no local web server.
 // - app://clinic/api/* is forwarded by this process to the clinic server address staff enter on

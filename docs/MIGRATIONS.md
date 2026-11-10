@@ -1,6 +1,6 @@
 # Migrations: changing the schema safely
 
-The server schema is owned by **versioned migration files** in `apps/server/src/migrations/`. They run automatically on startup (and with `npm run migrate -w @clinic/server`), in order, once each.
+The server schema is owned by **versioned migration files** in `services/api/src/migrations/`. They run automatically on startup (and with `npm run migrate -w @clinic/server`), in order, once each.
 
 ## File names
 
@@ -51,9 +51,9 @@ export async function up(ctx: MigrationContext) {
 
 If you only add the column (no backfill), use a `.sql` migration instead.
 
-**2. Shared definition** (`packages/shared/src/index.ts`): add `nickname` to the `Patient` interface and to `TABLE_COLUMNS.patients`. Until a column is in this list the server ignores it on push. If only some values are valid, add a rule to `validation.ts`.
+**2. Shared definition** (`shared/src/index.ts`): add `nickname` to the `Patient` interface and to `TABLE_COLUMNS.patients`. Until a column is in this list the server ignores it on push. If only some values are valid, add a rule to `validation.ts`.
 
-**3. Client** (`apps/web/src/data/db.ts`): add a new Dexie version for a new *indexed* field, a new table, or a data change. Never edit an old version.
+**3. Client** (`services/web/src/data/db.ts`): add a new Dexie version for a new *indexed* field, a new table, or a data change. Never edit an old version.
 
 ```ts
 this.version(4).stores({ /* only tables whose indexes changed, plus new tables */ })
@@ -67,15 +67,15 @@ this.version(4).stores({ /* only tables whose indexes changed, plus new tables *
 A plain, non-indexed new field needs no Dexie version; it simply appears on rows as they are written. Give it a default in `emptyPatient()` and the form, and treat `undefined` as empty when reading.
 
 **4. Tests:**
-- **Server:** add a case to `apps/server/src/migrations.test.ts`. Run the migrations up to the previous version, insert old-shape rows, then run the rest and check the result.
-- **Device:** add a case to `apps/web/src/data/db.upgrade.test.ts`. Create the previous Dexie version in fake-indexeddb, open `ClinicDB`, and check the result.
+- **Server:** add a case to `services/api/src/migrations.test.ts`. Run the migrations up to the previous version, insert old-shape rows, then run the rest and check the result.
+- **Device:** add a case to `services/web/src/data/db.upgrade.test.ts`. Create the previous Dexie version in fake-indexeddb, open `ClinicDB`, and check the result.
 
 ## Recipe: add a new table
 
 1. **Migration:** a `.sql` file with `CREATE TABLE`.
    - Include the standard columns: `id TEXT PRIMARY KEY, createdAt, updatedAt, isDeleted INTEGER NOT NULL DEFAULT 0, serverSeq INTEGER NOT NULL`, plus an index on `serverSeq`.
    - Declare foreign keys with `REFERENCES`.
-2. **`packages/shared`:** add the row type, add it to `SYNC_TABLES` **after its parents**, and list its columns in `TABLE_COLUMNS`.
+2. **`shared`:** add the row type, add it to `SYNC_TABLES` **after its parents**, and list its columns in `TABLE_COLUMNS`.
 3. **Client:** add the Dexie table in a new version, and the typed property on `ClinicDB`.
 4. Add a service and hooks for it.
 
@@ -83,7 +83,7 @@ A plain, non-indexed new field needs no Dexie version; it simply appears on rows
 
 A device may upgrade while offline and sync later. Its own upgrade must therefore produce **exactly** what the server migration produced:
 
-1. **Put the transform in `packages/shared` and freeze it.** The server migration and the Dexie upgrade both call it: `legacy.ts` for v1→v2 and `legacy-v3.ts` for v2→v3.
+1. **Put the transform in `shared` and freeze it.** The server migration and the Dexie upgrade both call it: `legacy.ts` for v1→v2 and `legacy-v3.ts` for v2→v3.
 2. **Give rows created by the move deterministic ids** (`deterministicUuid('v2-address:' + patientId)`). The device then pushes the same rows the server already has, instead of duplicates.
 3. **On the device, mark changed rows dirty only when needed.** The server already converted its copy, so a device only re-sends rows where it holds something the server does not, such as unsynced edits.
 

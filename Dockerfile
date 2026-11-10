@@ -7,10 +7,12 @@
 FROM node:20-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-COPY packages/shared/package.json packages/shared/
-COPY apps/server/package.json apps/server/
-COPY apps/web/package.json apps/web/
-RUN npm ci
+COPY shared/package.json shared/
+COPY services/api/package.json services/api/
+COPY services/web/package.json services/web/
+COPY services/desktop/package.json services/desktop/
+# The desktop app is not part of the server image: skip the Electron download.
+RUN ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci
 COPY . .
 RUN npm run build
 
@@ -19,17 +21,18 @@ FROM node:20-slim
 ENV NODE_ENV=production \
     PORT=8080 \
     DATA_DIR=/data \
-    WEB_DIR=/app/apps/web/dist \
+    WEB_DIR=/app/services/web/dist \
     TRUST_PROXY=true
 WORKDIR /app
 COPY package.json package-lock.json ./
-COPY packages/shared/package.json packages/shared/
-COPY apps/server/package.json apps/server/
-COPY apps/web/package.json apps/web/
+COPY shared/package.json shared/
+COPY services/api/package.json services/api/
+COPY services/web/package.json services/web/
+COPY services/desktop/package.json services/desktop/
 RUN npm ci --omit=dev --workspace @clinic/server --workspace @clinic/shared
-COPY packages/shared/src packages/shared/src
-COPY apps/server/src apps/server/src
-COPY --from=build /app/apps/web/dist apps/web/dist
+COPY shared/src shared/src
+COPY services/api/src services/api/src
+COPY --from=build /app/services/web/dist services/web/dist
 
 # The database and its pre-migration backups live on a volume so they survive redeploys.
 RUN mkdir -p /data && chown -R node:node /data
@@ -38,4 +41,4 @@ USER node
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
   CMD node -e "fetch('http://localhost:'+process.env.PORT+'/api/v1/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["node", "--import", "tsx", "apps/server/src/index.ts"]
+CMD ["node", "--import", "tsx", "services/api/src/index.ts"]

@@ -1,5 +1,5 @@
 /**
- * Present only inside the Windows desktop app (apps/desktop/src/preload.cjs). There, the app is
+ * Present only inside the Windows desktop app (services/desktop/src/preload.cjs). There, the app is
  * served from app://clinic and API calls are forwarded to the clinic server address saved here,
  * so the Connect page asks for that address. In the browser/PWA the API is the page's own origin.
  */

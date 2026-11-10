@@ -19,7 +19,7 @@
  └──────────────────────────────────────────────┘            └────────────────────────────────┘
 ```
 
-The same web build runs in the browser (installed as a PWA) and inside the Windows desktop app (`apps/desktop`, Electron). In the desktop app it is served from `app://clinic` straight from the install folder instead of a service worker, and `/api` calls are forwarded by the desktop shell to the clinic server address saved on the Connect page.
+The same web build runs in the browser (installed as a PWA) and inside the Windows desktop app (`services/desktop`, Electron). In the desktop app it is served from `app://clinic` straight from the install folder instead of a service worker, and `/api` calls are forwarded by the desktop shell to the clinic server address saved on the Connect page.
 
 The UI never talks to the server for normal work. It reads and writes the on-device database; a background sync engine reconciles with the server. That is what makes offline use the *normal* path and not a special mode.
 
@@ -27,7 +27,7 @@ The UI never talks to the server for normal work. It reads and writes the on-dev
 
 Each layer depends only on the one below it, and only through a narrow interface.
 
-### Server (`apps/server/src`)
+### Server (`services/api/src`)
 
 | Layer | Folder | Responsibility | Must not |
 | --- | --- | --- | --- |
@@ -40,7 +40,7 @@ Each layer depends only on the one below it, and only through a narrow interface
 
 `buildApp(deps)` takes its dependencies as arguments, so tests build the whole app against an in-memory database with no mocks.
 
-### Web (`apps/web/src`)
+### Web (`services/web/src`)
 
 | Layer | Folder | Responsibility |
 | --- | --- | --- |
@@ -50,7 +50,7 @@ Each layer depends only on the one below it, and only through a narrow interface
 | Domain | `domain/` | Pure functions: chart replay, age, balances, search (unit tested) |
 | Data | `data/` | IndexedDB schema and generic row operations |
 
-### Shared (`packages/shared`)
+### Shared (`shared`)
 
 Types, vocabularies (`vocab.ts`), the FDI tooth catalog, outlines and layout (`teeth.ts`), name formatting (`names.ts`), countries (`countries.ts`) and nationalities (`nationalities.ts`), column validation (`validation.ts`), the frozen data transforms used by migrations and device upgrades (`legacy.ts` v1→v2, `legacy-v3.ts` v2→v3), the sample data generator (`demo.ts`), and the **sync table definitions** (`SYNC_TABLES`, `TABLE_COLUMNS`). Both sides import it, so they cannot disagree on the wire format or on what a valid value is.
 
@@ -106,7 +106,7 @@ Known limits (accepted for v1): conflicts are whole-row, so two devices editing 
 
 `vite-plugin-pwa` generates a service worker that precaches every built asset (including the lazily loaded PDF code) plus a web manifest and icons. After the first visit the app opens with no network, and can be installed as a standalone window. `registerType: 'autoUpdate'` applies new versions on next launch. `index.html`, `sw.js` and the manifest are served `no-cache` so updates reach installed copies; hashed assets are `immutable`.
 
-### Windows desktop app (`apps/desktop`)
+### Windows desktop app (`services/desktop`)
 
 An Electron shell around the same web build, packaged by electron-builder into an NSIS installer (`Dental-Clinic-Setup-<version>.exe`, per-user, Start menu and desktop shortcuts).
 
