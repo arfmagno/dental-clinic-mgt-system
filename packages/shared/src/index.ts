@@ -7,6 +7,7 @@ export * from './legacy.js';
 export * from './legacy-v3.js';
 export * from './nationalities.js';
 export * from './vocab.js';
+export * from './demo.js';
 import type { Condition, ContactType, PaymentMethod } from './vocab.js';
 
 // ---------- Rows ----------

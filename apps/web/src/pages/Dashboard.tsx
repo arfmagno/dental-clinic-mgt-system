@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { demoToolsEnabled, loadDemoData, removeDemoData } from '../services/demoService';
 import { formatDate, formatMoney } from '../domain/format';
 import { usePatientSummaries, useRecentActivity } from '../hooks/useData';
 
@@ -54,6 +56,43 @@ export function Dashboard() {
           </ul>
         )}
       </section>
+
+      {demoToolsEnabled() && <DemoTools />}
     </div>
+  );
+}
+
+function DemoTools() {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const run = async (fn: () => Promise<string>) => {
+    setBusy(true);
+    try {
+      setMsg(await fn());
+    } catch (e) {
+      setMsg(`Failed: ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="card stack tight" aria-label="Sample data">
+      <h2>Sample data</h2>
+      <p className="muted small">For trying the app out: about 60 made-up patients with visits, payments and charts. Removing deletes only these sample records.</p>
+      <div className="row">
+        <button type="button" className="btn" disabled={busy} onClick={() => run(async () => `Loaded ${await loadDemoData()} sample patients.`)}>Load sample data</button>
+        <button
+          type="button"
+          className="btn danger"
+          disabled={busy}
+          onClick={() => {
+            if (window.confirm('Delete all sample patients and their records?')) void run(async () => ((await removeDemoData()) ? 'Sample data removed.' : 'No sample data to remove.'));
+          }}
+        >
+          Remove sample data
+        </button>
+      </div>
+      {msg && <p role="status" className="small">{msg}</p>}
+    </section>
   );
 }

@@ -8,7 +8,10 @@
     "start": "tsx src/index.ts",
     "migrate": "tsx src/migrate-cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/server.test.ts"
+    "test": "tsx --test src/server.test.ts src/migrations.test.ts src/seed.test.ts",
+    "migration:new": "tsx scripts/new-migration.ts",
+    "lint:migrations": "tsx scripts/check-migrations.ts",
+    "seed": "tsx scripts/seed.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
