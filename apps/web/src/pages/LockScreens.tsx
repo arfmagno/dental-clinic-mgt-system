@@ -93,13 +93,12 @@ export function PatientMode() {
               variant="patient"
               initial={emptyPatient()}
               initialContacts={[]}
-              initialAddresses={[]}
               submitLabel="Register"
               savingLabel="Registering…"
               cancelLabel="Clear form"
               onCancel={next}
-              onSubmit={async (fields, contacts, addresses) => {
-                await savePatient(undefined, fields, contacts, addresses);
+              onSubmit={async (fields, contacts) => {
+                await savePatient(undefined, fields, contacts);
                 setDone(true);
                 window.scrollTo({ top: 0 });
               }}

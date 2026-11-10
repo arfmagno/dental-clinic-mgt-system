@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { CONDITION_LABEL, PAYMENT_METHOD_LABEL, countryName, toCents, toothInfo, type Dentition, type Procedure } from '@clinic/shared';
+import { CONDITION_LABEL, PAYMENT_METHOD_LABEL, nationalityOf, toCents, toothInfo, type Dentition, type Procedure } from '@clinic/shared';
 import { ConditionLegend, Odontogram } from '../components/Odontogram';
 import { Modal } from '../components/Modal';
 import { PatientForm } from '../components/PatientForm';
@@ -9,7 +9,7 @@ import { ProcedureForm } from '../components/ProcedureForm';
 import { buildChart, type ToothState } from '../domain/chart';
 import { ageOf, formalName, formatAddress, formatDate, formatMoney, formatTime } from '../domain/format';
 import { usePatientBundle } from '../hooks/useData';
-import { deletePatient, savePatient, type AddressInput, type ContactInput, type PatientFields } from '../services/patientService';
+import { deletePatient, savePatient, type ContactInput, type PatientFields } from '../services/patientService';
 import { deletePayment, deleteProcedure, updateProcedure } from '../services/procedureService';
 
 type ModalState =
@@ -38,7 +38,7 @@ export function PatientDetail() {
       </div>
     );
 
-  const { patient, contacts, addresses, procedures, payments, paid, records, entries } = bundle;
+  const { patient, contacts, procedures, payments, paid, records, entries } = bundle;
   const name = formalName(patient);
   const age = ageOf(patient.birthDate);
   const balanceOf = (p: Procedure) => p.costCents - (paid.get(p.id) ?? 0);
@@ -54,8 +54,6 @@ export function PatientDetail() {
     return fields;
   };
   const toContacts = (): ContactInput[] => contacts.map((c) => ({ id: c.id, type: c.type, value: c.value, label: c.label, isPrimary: c.isPrimary }));
-  const toAddresses = (): AddressInput[] =>
-    addresses.map((a) => ({ id: a.id, label: a.label, street: a.street, district: a.district, city: a.city, province: a.province, postalCode: a.postalCode, countryCode: a.countryCode, isPrimary: a.isPrimary }));
 
   async function exportPdf() {
     setExporting(true);
@@ -86,7 +84,7 @@ export function PatientDetail() {
           <dl className="facts">
             <div><dt>Age</dt><dd>{age === null ? '—' : `${age}${patient.birthDate ? ` (b. ${formatDate(patient.birthDate)})` : ''}`}</dd></div>
             <div><dt>Civil status</dt><dd>{patient.civilStatus || '—'}</dd></div>
-            <div><dt>Citizenship</dt><dd>{patient.citizenshipCode ? countryName(patient.citizenshipCode) : '—'}</dd></div>
+            <div><dt>Citizenship</dt><dd>{nationalityOf(patient.citizenshipCode) || '—'}</dd></div>
             <div><dt>Occupation</dt><dd>{patient.occupation || '—'}</dd></div>
             <div><dt>Last visit</dt><dd>{lastVisit ? formatDate(lastVisit) : 'No visits yet'}</dd></div>
             <div><dt>Outstanding balance</dt><dd className={balance > 0 ? 'owed strong' : 'strong'}>{formatMoney(balance)}</dd></div>
@@ -106,21 +104,7 @@ export function PatientDetail() {
                 )}
               </dd>
             </div>
-            <div className="wide">
-              <dt>Address{addresses.length === 1 ? '' : 'es'}</dt>
-              <dd>
-                {addresses.length === 0 ? '—' : (
-                  <ul className="contact-list">
-                    {addresses.map((a) => (
-                      <li key={a.id}>
-                        <span className="badge">{a.label || 'Address'}</span> {formatAddress(a) || '—'}
-                        {a.isPrimary && addresses.length > 1 && <span className="badge primary-badge">primary</span>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </dd>
-            </div>
+            <div className="wide"><dt>Address</dt><dd>{formatAddress(patient) || '—'}</dd></div>
             {patient.remarks && <div className="wide"><dt>Remarks</dt><dd className="pre">{patient.remarks}</dd></div>}
           </dl>
         </div>
@@ -221,11 +205,10 @@ export function PatientDetail() {
           <PatientForm
             initial={toFields()}
             initialContacts={toContacts()}
-            initialAddresses={toAddresses()}
             submitLabel="Save changes"
             onCancel={close}
-            onSubmit={async (f, c, a) => {
-              await savePatient(patient.id, f, c, a);
+            onSubmit={async (f, c) => {
+              await savePatient(patient.id, f, c);
               close();
             }}
           />

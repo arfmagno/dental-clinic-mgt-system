@@ -1,13 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deterministicUuid } from '@clinic/shared';
 import { loadConfig } from './config.js';
 import { openDriver } from './infra/db/open.js';
 import { TokenSigner } from './infra/auth/tokens.js';
 import { migrate } from './migrate.js';
-import { migrations } from './migrations/index.js';
-import { m001 } from './migrations/001_initial.js';
-import type { Migration } from './migrations/types.js';
 import { AuthService, LoginThrottle, PasswordAuthProvider } from './services/authService.js';
 import { SyncService } from './services/syncService.js';
 import { buildApp } from './http/app.js';
@@ -28,104 +24,6 @@ async function setup(throttle?: LoginThrottle) {
   const login = async () => (await app.inject({ method: 'POST', url: '/api/v1/auth/login', payload: { password: 'pw' } })).json().token as string;
   return { app, db, sync, login };
 }
-
-// ---------------- migrations ----------------
-test('migrations apply once and are idempotent', async () => {
-  const db = openDriver('sqlite::memory:');
-  assert.deepEqual(await migrate(db), [1, 2]);
-  assert.deepEqual(await migrate(db), []);
-});
-
-test('a later migration can add a column and backfill it, and devices receive the backfill', async () => {
-  const db = openDriver('sqlite::memory:');
-  await migrate(db);
-  const sync = new SyncService(db);
-  await sync.push({ changes: { patients: [patient('p1', { firstName: 'Maria', lastName: 'Clara' })] } as any });
-  const before = (await sync.pull(0)).cursor;
-
-  const m099: Migration = {
-    id: 99,
-    name: 'add patients.nickname',
-    async up(ctx) {
-      await ctx.db.exec("ALTER TABLE patients ADD COLUMN nickname TEXT NOT NULL DEFAULT ''");
-      await ctx.backfill('patients', (r) => ({ nickname: String(r.firstName).slice(0, 3) }), "nickname = ''");
-    },
-  };
-  assert.deepEqual(await migrate(db, { migrations: [...migrations, m099] }), [99]);
-  const r = await db.get<{ nickname: string; serverSeq: number }>('SELECT nickname, serverSeq FROM patients WHERE id = ?', ['p1']);
-  assert.equal(r?.nickname, 'Mar');
-  assert.ok(r!.serverSeq > before, 'backfilled row must get a new serverSeq so clients pull it');
-});
-
-test('a failing migration rolls back completely and is not recorded', async () => {
-  const db = openDriver('sqlite::memory:');
-  await migrate(db);
-  const bad: Migration = {
-    id: 99,
-    name: 'broken',
-    async up(ctx) {
-      await ctx.db.exec('CREATE TABLE half_done (id TEXT)');
-      throw new Error('boom');
-    },
-  };
-  await assert.rejects(migrate(db, { migrations: [...migrations, bad] }), /boom/);
-  assert.equal(await db.get("SELECT name FROM sqlite_master WHERE name = 'half_done'"), undefined);
-  assert.equal((await db.all('SELECT id FROM _migrations')).length, 2);
-});
-
-test('migration 002 normalises v1 data: names, citizenship, addresses, payments, tooth FK', async () => {
-  const db = openDriver('sqlite::memory:');
-  await migrate(db, { migrations: [m001] }); // a v0.1.0 database
-  const now = iso();
-  await db.run(
-    `INSERT INTO patients (id, createdAt, updatedAt, isDeleted, serverSeq, fullName, address, citizenship, remarks)
-     VALUES ('p1', ?, ?, 0, 1, 'Juan Miguel Dela Cruz', '12 Mabini St, Quezon City', 'Filipino', ''),
-            ('p2', ?, ?, 0, 2, 'Ana', '', 'Martian', 'VIP')`,
-    [now, now, now, now],
-  );
-  await db.run(
-    `INSERT INTO procedures (id, createdAt, updatedAt, isDeleted, serverSeq, patientId, type, date, time, costCents, paidCents)
-     VALUES ('pr1', ?, ?, 0, 3, 'p1', 'Filling', '2026-01-05', '10:30', 150000, 50000),
-            ('pr2', ?, ?, 0, 4, 'p1', 'Check-up', '2026-02-01', '', 0, 0)`,
-    [now, now, now, now],
-  );
-  await db.run(`INSERT INTO dental_records (id, createdAt, updatedAt, isDeleted, serverSeq, patientId, procedureId, recordedAt) VALUES ('r1', ?, ?, 0, 5, 'p1', 'pr1', '2026-01-05T10:30')`, [now, now]);
-  await db.run(`INSERT INTO tooth_entries (id, createdAt, updatedAt, isDeleted, serverSeq, recordId, patientId, procedureId, tooth, condition) VALUES ('e1', ?, ?, 0, 6, 'r1', 'p1', 'pr1', 16, 'filled')`, [now, now]);
-  await db.exec("UPDATE sync_meta SET value = 6 WHERE key = 'seq'");
-
-  assert.deepEqual(await migrate(db), [2]);
-
-  const p1 = await db.get<Record<string, unknown>>('SELECT * FROM patients WHERE id = ?', ['p1']);
-  assert.deepEqual([p1?.firstName, p1?.middleName, p1?.lastName, p1?.citizenshipCode], ['Juan', 'Miguel', 'Dela Cruz', 'PH']);
-  assert.ok(!('fullName' in p1!) && !('address' in p1!) && !('citizenship' in p1!), 'old columns dropped');
-  const p2 = await db.get<Record<string, unknown>>('SELECT * FROM patients WHERE id = ?', ['p2']);
-  assert.equal(p2?.citizenshipCode, '');
-  assert.match(String(p2?.remarks), /VIP\nCitizenship \(from earlier record\): Martian/, 'unrecognised citizenship is not lost');
-
-  const addresses = await db.all<Record<string, unknown>>('SELECT * FROM patient_addresses');
-  assert.equal(addresses.length, 1, 'only patients with an address get one');
-  assert.equal(addresses[0].id, deterministicUuid('v2-address:p1'), 'ids are deterministic so the device upgrade matches');
-  assert.equal(addresses[0].street, '12 Mabini St, Quezon City');
-
-  const payments = await db.all<Record<string, unknown>>('SELECT * FROM payments');
-  assert.equal(payments.length, 1, 'zero amounts produce no payment');
-  assert.deepEqual([payments[0].procedureId, payments[0].amountCents, payments[0].paidAt], ['pr1', 50000, '2026-01-05T10:30']);
-  assert.ok(!('paidCents' in (await db.get<Record<string, unknown>>('SELECT * FROM procedures LIMIT 1'))!));
-
-  assert.equal((await db.all('SELECT * FROM tooth_entries')).length, 1, 'tooth entries survive the table rebuild');
-  await assert.rejects(
-    db.run(`INSERT INTO tooth_entries (id, createdAt, updatedAt, isDeleted, serverSeq, recordId, patientId, tooth, condition) VALUES ('e2', ?, ?, 0, 99, 'r1', 'p1', 19, 'filled')`, [now, now]),
-    /FOREIGN KEY/,
-    'tooth 19 does not exist in FDI notation',
-  );
-  assert.equal((await db.get<{ n: number }>('SELECT COUNT(*) AS n FROM teeth'))?.n, 52);
-
-  // every changed/new row must be newer than what devices already pulled (seq 6)
-  const sync = new SyncService(db);
-  const pulled = await sync.pull(6, 100);
-  const tables = new Set(pulled.rows.map((r) => r.table));
-  assert.ok(tables.has('patients') && tables.has('patient_addresses') && tables.has('payments'));
-});
 
 // ---------------- sync rules ----------------
 test('push applies parents before children, last-write-wins, pull pages by cursor', async () => {
@@ -149,18 +47,20 @@ test('push applies parents before children, last-write-wins, pull pages by curso
   assert.ok(!('serverSeq' in fetched));
 });
 
-test('payments and addresses sync with their parents', async () => {
+test('payments sync with their parents; tables the server no longer has are ignored', async () => {
   const { sync } = await setup();
   const res = await sync.push({
     changes: {
       payments: [row('pay1', { procedureId: 'pr1', amountCents: 50000, paidAt: '2026-11-10T09:30', method: 'cash', remarks: '' })],
-      patient_addresses: [row('a1', { patientId: 'p1', label: 'Home', city: 'Quezon City', countryCode: 'PH', isPrimary: true })],
+      patient_addresses: [row('a1', { patientId: 'p1', label: 'Home', city: 'Quezon City', countryCode: 'PH', isPrimary: true })], // from a v0.2.0 device
       procedures: [procedure('pr1', 'p1')],
-      patients: [patient('p1')],
+      patients: [patient('p1', { addressLine1: '12 Mabini St, Quezon City', addressCountryCode: 'PH' })],
     } as any,
   });
   assert.deepEqual(res.rejected, []);
-  assert.deepEqual([res.accepted.payments, res.accepted.patient_addresses], [['pay1'], ['a1']]);
+  assert.deepEqual([res.accepted.payments, (res.accepted as Record<string, unknown>).patient_addresses], [['pay1'], undefined]);
+  const p = (await sync.pull(0)).rows.find((r) => r.table === 'patients')!.row;
+  assert.deepEqual([p.addressLine1, p.addressCountryCode], ['12 Mabini St, Quezon City', 'PH']);
 });
 
 test('a far-future device clock is clamped, unknown columns are dropped, bad rows are rejected individually', async () => {

@@ -4,6 +4,8 @@ export * from './names.js';
 export * from './countries.js';
 export * from './validation.js';
 export * from './legacy.js';
+export * from './legacy-v3.js';
+export * from './nationalities.js';
 export * from './vocab.js';
 import type { Condition, ContactType, PaymentMethod } from './vocab.js';
 
@@ -24,7 +26,9 @@ export interface Patient extends BaseRow {
   birthDate: string; // YYYY-MM-DD or ''
   occupation: string;
   civilStatus: string; // one of CIVIL_STATUSES or ''
-  citizenshipCode: string; // ISO 3166-1 alpha-2 (e.g. PH) or ''
+  citizenshipCode: string; // ISO 3166-1 alpha-2 of the country of citizenship (PH = Filipino); shown as a nationality
+  addressLine1: string; // one free-text line: house no., street, barangay, city, province, postal code
+  addressCountryCode: string; // ISO 3166-1 alpha-2, or '' when there is no address
   photo: string; // compressed data URL or ''
   remarks: string;
 }
@@ -34,18 +38,6 @@ export interface PatientContact extends BaseRow {
   type: ContactType;
   value: string;
   label: string;
-  isPrimary: boolean; // exactly one primary per patient (enforced by the service)
-}
-
-export interface PatientAddress extends BaseRow {
-  patientId: string;
-  label: string; // Home / Work / Other
-  street: string; // house no., street, subdivision
-  district: string; // barangay / district
-  city: string; // city / municipality
-  province: string;
-  postalCode: string;
-  countryCode: string; // ISO 3166-1 alpha-2
   isPrimary: boolean; // exactly one primary per patient (enforced by the service)
 }
 
@@ -90,7 +82,6 @@ export interface ToothEntry extends BaseRow {
 export const SYNC_TABLES = [
   'patients',
   'patient_contacts',
-  'patient_addresses',
   'procedures',
   'payments',
   'dental_records',
@@ -100,9 +91,8 @@ export type SyncTable = (typeof SYNC_TABLES)[number];
 
 export const BASE_COLUMNS = ['id', 'createdAt', 'updatedAt', 'isDeleted'] as const;
 export const TABLE_COLUMNS: Record<SyncTable, readonly string[]> = {
-  patients: ['salutation', 'firstName', 'middleName', 'lastName', 'birthDate', 'occupation', 'civilStatus', 'citizenshipCode', 'photo', 'remarks'],
+  patients: ['salutation', 'firstName', 'middleName', 'lastName', 'birthDate', 'occupation', 'civilStatus', 'citizenshipCode', 'addressLine1', 'addressCountryCode', 'photo', 'remarks'],
   patient_contacts: ['patientId', 'type', 'value', 'label', 'isPrimary'],
-  patient_addresses: ['patientId', 'label', 'street', 'district', 'city', 'province', 'postalCode', 'countryCode', 'isPrimary'],
   procedures: ['patientId', 'type', 'date', 'time', 'costCents', 'remarks'],
   payments: ['procedureId', 'amountCents', 'paidAt', 'method', 'remarks'],
   dental_records: ['patientId', 'procedureId', 'recordedAt', 'remarks'],

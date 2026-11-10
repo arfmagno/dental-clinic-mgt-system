@@ -1,29 +1,28 @@
 import { useState, type FormEvent } from 'react';
 import { CIVIL_STATUSES, SALUTATIONS } from '@clinic/shared';
-import { emptyAddress, emptyContact, validatePatient, type AddressInput, type ContactInput, type PatientFields } from '../services/patientService';
-import { AddressesEditor } from './AddressesEditor';
+import { nowLocal } from '../domain/format';
+import { emptyContact, validatePatient, type ContactInput, type PatientFields } from '../services/patientService';
 import { ContactsEditor } from './ContactsEditor';
 import { CountrySelect } from './CountrySelect';
+import { NationalitySelect } from './NationalitySelect';
 import { PhotoPicker } from './PhotoPicker';
 
 interface Props {
   initial: PatientFields;
   initialContacts: ContactInput[];
-  initialAddresses: AddressInput[];
   /** Descriptive action, e.g. "Add patient", "Save changes", "Register". */
   submitLabel: string;
   savingLabel?: string;
   cancelLabel?: string;
-  onSubmit(fields: PatientFields, contacts: ContactInput[], addresses: AddressInput[]): Promise<void>;
+  onSubmit(fields: PatientFields, contacts: ContactInput[]): Promise<void>;
   onCancel(): void;
   /** 'patient' hides staff-only fields (remarks) for the patient-facing form. */
   variant?: 'staff' | 'patient';
 }
 
-export function PatientForm({ initial, initialContacts, initialAddresses, submitLabel, savingLabel = 'Saving…', cancelLabel = 'Cancel', onSubmit, onCancel, variant = 'staff' }: Props) {
+export function PatientForm({ initial, initialContacts, submitLabel, savingLabel = 'Saving…', cancelLabel = 'Cancel', onSubmit, onCancel, variant = 'staff' }: Props) {
   const [f, setF] = useState(initial);
   const [contacts, setContacts] = useState<ContactInput[]>(initialContacts.length ? initialContacts : [emptyContact(true)]);
-  const [addresses, setAddresses] = useState<AddressInput[]>(initialAddresses.length ? initialAddresses : [emptyAddress(true)]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const set = <K extends keyof PatientFields>(k: K, v: PatientFields[K]) => setF((p) => ({ ...p, [k]: v }));
@@ -35,7 +34,7 @@ export function PatientForm({ initial, initialContacts, initialAddresses, submit
     setSaving(true);
     setError('');
     try {
-      await onSubmit(f, contacts, addresses);
+      await onSubmit(f, contacts);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save');
       setSaving(false);
@@ -71,8 +70,8 @@ export function PatientForm({ initial, initialContacts, initialAddresses, submit
 
       <div className="grid3">
         <label className="field">
-          <span>Date of birth</span>
-          <input type="date" max={new Date().toISOString().slice(0, 10)} value={f.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
+          <span>Date of birth *</span>
+          <input required type="date" max={nowLocal().date} min="1900-01-01" value={f.birthDate} onChange={(e) => set('birthDate', e.target.value)} />
         </label>
         <label className="field">
           <span>Civil status</span>
@@ -82,8 +81,8 @@ export function PatientForm({ initial, initialContacts, initialAddresses, submit
           </select>
         </label>
         <label className="field">
-          <span>Citizenship</span>
-          <CountrySelect value={f.citizenshipCode} onChange={(v) => set('citizenshipCode', v)} />
+          <span>Citizenship *</span>
+          <NationalitySelect required value={f.citizenshipCode} onChange={(v) => set('citizenshipCode', v)} />
         </label>
       </div>
 
@@ -97,9 +96,20 @@ export function PatientForm({ initial, initialContacts, initialAddresses, submit
         <ContactsEditor value={contacts} onChange={setContacts} />
       </div>
 
-      <div className="field">
-        <span>Address</span>
-        <AddressesEditor value={addresses} onChange={setAddresses} />
+      <div className="address-row">
+        <label className="field">
+          <span>Address</span>
+          <input
+            autoComplete="street-address"
+            placeholder="House no., street, barangay, city, province"
+            value={f.addressLine1}
+            onChange={(e) => set('addressLine1', e.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span>Country</span>
+          <CountrySelect value={f.addressCountryCode || 'PH'} onChange={(v) => set('addressCountryCode', v)} allowEmpty={false} />
+        </label>
       </div>
 
       {variant === 'staff' && (

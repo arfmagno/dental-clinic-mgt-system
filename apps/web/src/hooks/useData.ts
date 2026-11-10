@@ -5,7 +5,6 @@ import {
   paidByProcedure,
   type DentalRecord,
   type Patient,
-  type PatientAddress,
   type PatientContact,
   type Payment,
   type Procedure,
@@ -30,13 +29,13 @@ export function usePatientSummaries(): PatientSummary[] | undefined {
   }, []);
 }
 
-/** patientId -> searchable text from contacts and addresses. */
+/** patientId -> searchable text from contacts and the address. */
 export function useSearchIndex(): Map<string, string> | undefined {
   return useLiveQuery(async () => {
     const map = new Map<string, string>();
     const add = (id: string, text: string) => map.set(id, `${map.get(id) ?? ''} ${text}`);
     for (const c of await db.patient_contacts.toArray()) if (!c.isDeleted) add(c.patientId, c.value);
-    for (const a of await db.patient_addresses.toArray()) if (!a.isDeleted) add(a.patientId, formatAddress(a));
+    for (const p of await db.patients.toArray()) if (!p.isDeleted) add(p.id, formatAddress(p));
     return map;
   }, []);
 }
@@ -44,7 +43,6 @@ export function useSearchIndex(): Map<string, string> | undefined {
 export interface PatientBundle {
   patient: Patient;
   contacts: PatientContact[]; // primary first
-  addresses: PatientAddress[]; // primary first
   procedures: Procedure[]; // newest first
   payments: Payment[]; // oldest first
   paid: Map<string, number>; // procedureId -> total paid
@@ -60,9 +58,8 @@ export function usePatientBundle(id: string | undefined): PatientBundle | null |
     if (!id) return null;
     const patient = await db.patients.get(id);
     if (!patient || patient.isDeleted) return null;
-    const [contacts, addresses, procedures, records, entries] = await Promise.all([
+    const [contacts, procedures, records, entries] = await Promise.all([
       db.patient_contacts.where('patientId').equals(id).toArray(),
-      db.patient_addresses.where('patientId').equals(id).toArray(),
       db.procedures.where('patientId').equals(id).toArray(),
       db.dental_records.where('patientId').equals(id).toArray(),
       db.tooth_entries.where('patientId').equals(id).toArray(),
@@ -74,7 +71,6 @@ export function usePatientBundle(id: string | undefined): PatientBundle | null |
     return {
       patient,
       contacts: contacts.filter((c) => !c.isDeleted).sort(primaryFirst),
-      addresses: addresses.filter((a) => !a.isDeleted).sort(primaryFirst),
       procedures: live.sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`)),
       payments,
       paid: paidByProcedure(payments),

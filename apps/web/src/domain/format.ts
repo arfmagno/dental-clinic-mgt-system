@@ -1,4 +1,4 @@
-import { countryName, formatName, type Patient, type PatientAddress, type Procedure } from '@clinic/shared';
+import { countryName, DEFAULT_COUNTRY, formatName, type Patient, type Procedure } from '@clinic/shared';
 
 const peso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 export const formatMoney = (cents: number) => peso.format(cents / 100);
@@ -40,11 +40,11 @@ export function ageOf(birthDate: string, today = new Date()): number | null {
   return age;
 }
 
-/** "12 Mabini St, Brgy. San Roque, Quezon City, Metro Manila 1100" (+ country when not PH). */
-export function formatAddress(a: Pick<PatientAddress, 'street' | 'district' | 'city' | 'province' | 'postalCode' | 'countryCode'>): string {
-  const line = [a.street, a.district, a.city, [a.province, a.postalCode].filter(Boolean).join(' ')].map((s) => s.trim()).filter(Boolean);
-  if (a.countryCode && a.countryCode !== 'PH') line.push(countryName(a.countryCode));
-  return line.join(', ');
+/** The patient's address line, followed by the country when it is not the Philippines. */
+export function formatAddress(p: Pick<Patient, 'addressLine1' | 'addressCountryCode'>): string {
+  const line = (p.addressLine1 ?? '').trim();
+  if (!line) return '';
+  return p.addressCountryCode && p.addressCountryCode !== DEFAULT_COUNTRY ? `${line}, ${countryName(p.addressCountryCode)}` : line;
 }
 
 export const displayName = (p: Patient) => formatName(p);

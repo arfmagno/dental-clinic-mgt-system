@@ -3,9 +3,9 @@ import {
   legacyAddressRow,
   legacyPatientPatch,
   legacyPaymentRow,
+  legacyV3Address,
   type DentalRecord,
   type Patient,
-  type PatientAddress,
   type PatientContact,
   type Payment,
   type Procedure,
@@ -32,7 +32,6 @@ export interface MetaRow {
 export class ClinicDB extends Dexie {
   patients!: Table<Local<Patient>, string>;
   patient_contacts!: Table<Local<PatientContact>, string>;
-  patient_addresses!: Table<Local<PatientAddress>, string>;
   procedures!: Table<Local<Procedure>, string>;
   payments!: Table<Local<Payment>, string>;
   dental_records!: Table<Local<DentalRecord>, string>;
@@ -78,6 +77,29 @@ export class ClinicDB extends Dexie {
             await tx.table('procedures').put({ ...rest, updatedAt: now, dirty: 1 });
           }
         }
+      });
+
+    // v3 (app 0.3.0): one address per patient, as a line + country on the patient row.
+    // Mirrors server migration 20261111090000-single-address via the frozen shared transform.
+    this.version(3)
+      .stores({ patient_addresses: null })
+      .upgrade(async (tx) => {
+        const now = new Date().toISOString();
+        const addresses = await tx.table('patient_addresses').toArray();
+        const byPatient = new Map<string, typeof addresses>();
+        for (const a of addresses) byPatient.set(a.patientId, [...(byPatient.get(a.patientId) ?? []), a]);
+        await tx.table('patients').toCollection().modify((p) => {
+          const list = byPatient.get(p.id) ?? [];
+          const value = legacyV3Address(list);
+          p.addressLine1 = value.addressLine1;
+          p.addressCountryCode = value.addressCountryCode;
+          // Re-sync when there is something to send, or when an address edit had not synced yet
+          // (otherwise the server's own conversion of the same data is already correct).
+          if (value.addressLine1 || value.addressCountryCode || list.some((a) => a.dirty)) {
+            p.updatedAt = now;
+            p.dirty = 1;
+          }
+        });
       });
   }
 }

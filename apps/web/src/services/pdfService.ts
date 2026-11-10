@@ -7,7 +7,7 @@ import {
   PAYMENT_METHOD_LABEL,
   SHAPE_H,
   SHAPE_W,
-  countryName,
+  nationalityOf,
   dentitionOf,
   flattenPath,
   formatName,
@@ -100,7 +100,7 @@ function drawTooth(doc: jsPDF, t: ToothBox, condition: Condition, ox: number, oy
 
 /** Builds a styled, printable patient record: details, dental chart, procedures and payments. */
 export async function exportPatientPdf(bundle: PatientBundle, clinicName = 'Dental Clinic'): Promise<void> {
-  const { patient, contacts, addresses, procedures, payments, paid, records, entries } = bundle;
+  const { patient, contacts, procedures, payments, paid, records, entries } = bundle;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
   const M = 14;
@@ -135,7 +135,7 @@ export async function exportPatientPdf(bundle: PatientBundle, clinicName = 'Dent
   const info: [string, string][] = [
     ['Age', age === null ? '-' : `${age} (born ${formatDate(patient.birthDate)})`],
     ['Civil status', patient.civilStatus || '-'],
-    ['Citizenship', patient.citizenshipCode ? countryName(patient.citizenshipCode) : '-'],
+    ['Citizenship', nationalityOf(patient.citizenshipCode) || '-'],
     ['Occupation', patient.occupation || '-'],
     ['Last visit', last ? formatDate(last) : '-'],
     ['Outstanding balance', money(outstanding)],
@@ -164,7 +164,7 @@ export async function exportPatientPdf(bundle: PatientBundle, clinicName = 'Dent
   };
   const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
   section('CONTACTS', contacts.map((c) => `${cap(c.type)}${c.label ? ` (${c.label})` : ''}${c.isPrimary && contacts.length > 1 ? ' [primary]' : ''}: ${c.value}`));
-  section('ADDRESSES', addresses.map((a) => `${a.label || 'Address'}${a.isPrimary && addresses.length > 1 ? ' [primary]' : ''}: ${formatAddress(a) || '-'}`));
+  section('ADDRESS', formatAddress(patient) ? [formatAddress(patient)] : []);
   section('REMARKS', patient.remarks ? [patient.remarks] : []);
 
   // ---- dental chart ----

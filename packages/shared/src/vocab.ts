@@ -57,7 +57,6 @@ export const SALUTATIONS = ['Mr.', 'Ms.', 'Mrs.', 'Mx.', 'Dr.', 'Atty.', 'Engr.'
 export const CIVIL_STATUSES = ['Single', 'Married', 'Widowed', 'Separated', 'Divorced'] as const;
 export const CONTACT_TYPES = ['phone', 'email', 'messenger', 'other'] as const;
 export type ContactType = (typeof CONTACT_TYPES)[number];
-export const ADDRESS_LABELS = ['Home', 'Work', 'Other'] as const;
 export const PAYMENT_METHODS = ['cash', 'card', 'e_wallet', 'bank_transfer', 'hmo', 'other'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {

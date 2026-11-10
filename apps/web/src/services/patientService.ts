@@ -1,4 +1,4 @@
-import { DEFAULT_COUNTRY, type ContactType, type Patient } from '@clinic/shared';
+import { DEFAULT_CITIZENSHIP, DEFAULT_COUNTRY, type ContactType, type Patient } from '@clinic/shared';
 import type { Table } from 'dexie';
 import { db, type Local } from '../data/db';
 import { createRow, softDeleteRow, updateRow } from '../data/repository';
@@ -13,18 +13,6 @@ export interface ContactInput {
   isPrimary: boolean;
 }
 
-export interface AddressInput {
-  id?: string;
-  label: string;
-  street: string;
-  district: string;
-  city: string;
-  province: string;
-  postalCode: string;
-  countryCode: string;
-  isPrimary: boolean;
-}
-
 export const emptyPatient = (): PatientFields => ({
   salutation: '',
   firstName: '',
@@ -33,17 +21,14 @@ export const emptyPatient = (): PatientFields => ({
   birthDate: '',
   occupation: '',
   civilStatus: '',
-  citizenshipCode: DEFAULT_COUNTRY,
+  citizenshipCode: DEFAULT_CITIZENSHIP,
+  addressLine1: '',
+  addressCountryCode: DEFAULT_COUNTRY,
   photo: '',
   remarks: '',
 });
 
 export const emptyContact = (isPrimary: boolean): ContactInput => ({ type: 'phone', value: '', label: '', isPrimary });
-export const emptyAddress = (isPrimary: boolean): AddressInput => ({
-  label: 'Home', street: '', district: '', city: '', province: '', postalCode: '', countryCode: DEFAULT_COUNTRY, isPrimary,
-});
-
-const addressIsBlank = (a: AddressInput) => ![a.street, a.district, a.city, a.province, a.postalCode].some((s) => s.trim());
 
 /** Exactly one primary among the given items (the first marked one, else the first item). */
 export function withSinglePrimary<T extends { isPrimary: boolean }>(items: T[]): T[] {
@@ -51,14 +36,26 @@ export function withSinglePrimary<T extends { isPrimary: boolean }>(items: T[]):
   return items.map((i, n) => ({ ...i, isPrimary: n === idx }));
 }
 
+const todayLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/**
+ * Form rules. Date of birth and citizenship are required for new and edited patients; the server
+ * stays lenient on them so older records (created before they were required) still sync.
+ */
 export function validatePatient(f: PatientFields): string | null {
   if (!f.firstName.trim()) return 'First name is required';
   if (!f.lastName.trim()) return 'Last name is required';
-  if (f.birthDate && f.birthDate > new Date().toISOString().slice(0, 10)) return 'Date of birth cannot be in the future';
+  if (!f.birthDate) return 'Date of birth is required';
+  if (f.birthDate > todayLocal()) return 'Date of birth cannot be in the future';
+  if (f.birthDate < '1900-01-01') return 'Check the date of birth';
+  if (!f.citizenshipCode) return 'Citizenship is required';
   return null;
 }
 
-/** Syncs a child list (contacts or addresses) to the wanted state: update, create, soft-delete. */
+/** Syncs a child list to the wanted state: update, create, soft-delete. */
 async function reconcile<T extends { id?: string }, R extends { id: string; isDeleted: boolean }>(
   table: Table<Local<R>, string>,
   existing: R[],
@@ -80,8 +77,8 @@ async function reconcile<T extends { id?: string }, R extends { id: string; isDe
   for (const e of existing) if (!keep.has(e.id)) await softDeleteRow(table as never, e.id);
 }
 
-/** Creates or updates a patient with their contacts and addresses, atomically. Returns the id. */
-export async function savePatient(id: string | undefined, fields: PatientFields, contacts: ContactInput[], addresses: AddressInput[]): Promise<string> {
+/** Creates or updates a patient with their contacts, atomically. Returns the id. */
+export async function savePatient(id: string | undefined, fields: PatientFields, contacts: ContactInput[]): Promise<string> {
   const clean: PatientFields = {
     ...fields,
     salutation: fields.salutation.trim(),
@@ -89,6 +86,9 @@ export async function savePatient(id: string | undefined, fields: PatientFields,
     middleName: fields.middleName.trim(),
     lastName: fields.lastName.trim(),
     occupation: fields.occupation.trim(),
+    addressLine1: fields.addressLine1.trim(),
+    // a country without an address line says nothing; keep it only when there is an address
+    addressCountryCode: fields.addressLine1.trim() ? fields.addressCountryCode : '',
     remarks: fields.remarks.trim(),
   };
   const problem = validatePatient(clean);
@@ -97,19 +97,13 @@ export async function savePatient(id: string | undefined, fields: PatientFields,
   const wantedContacts = withSinglePrimary(
     contacts.map((c) => ({ ...c, value: c.value.trim(), label: c.label.trim() })).filter((c) => c.value),
   );
-  const wantedAddresses = withSinglePrimary(
-    addresses.map((a) => ({ ...a, street: a.street.trim(), district: a.district.trim(), city: a.city.trim(), province: a.province.trim(), postalCode: a.postalCode.trim() })).filter((a) => !addressIsBlank(a)),
-  );
-
-  return db.transaction('rw', db.patients, db.patient_contacts, db.patient_addresses, async () => {
+  return db.transaction('rw', db.patients, db.patient_contacts, async () => {
     const patientId = id ?? (await createRow(db.patients, clean)).id;
     if (id) await updateRow(db.patients, id, clean);
 
     const contactsNow = (await db.patient_contacts.where('patientId').equals(patientId).toArray()).filter((c) => !c.isDeleted);
     await reconcile(db.patient_contacts, contactsNow, wantedContacts, ({ id: _id, ...c }) => ({ patientId, ...c }));
 
-    const addressesNow = (await db.patient_addresses.where('patientId').equals(patientId).toArray()).filter((a) => !a.isDeleted);
-    await reconcile(db.patient_addresses, addressesNow, wantedAddresses, ({ id: _id, ...a }) => ({ patientId, ...a }));
     return patientId;
   });
 }

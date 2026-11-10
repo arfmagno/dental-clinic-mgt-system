@@ -19,12 +19,11 @@ export function PatientNew() {
         <PatientForm
           initial={emptyPatient()}
           initialContacts={[]}
-          initialAddresses={[]}
           submitLabel="Add patient"
           savingLabel="Adding patient…"
           onCancel={() => nav(-1)}
-          onSubmit={async (fields, contacts, addresses) => {
-            const id = await savePatient(undefined, fields, contacts, addresses);
+          onSubmit={async (fields, contacts) => {
+            const id = await savePatient(undefined, fields, contacts);
             nav(`/patients/${id}`, { replace: true });
           }}
         />
