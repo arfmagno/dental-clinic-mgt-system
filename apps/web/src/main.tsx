@@ -2,7 +2,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from './App';
+import { applyTheme, watchSystemTheme } from './services/theme';
 import './styles.css';
+
+// Apply the saved light/dark choice before the first paint, and follow the device when set to "system".
+applyTheme();
+watchSystemTheme();
 
 // Registers the service worker that caches the whole app for offline use and applies updates.
 registerSW({ immediate: true });
