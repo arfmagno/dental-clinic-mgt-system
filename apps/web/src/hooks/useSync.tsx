@@ -2,14 +2,16 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../data/db';
 import { ApiError } from '../services/api';
-import { expireToken, getToken } from '../services/session';
+import { disconnectFromServer, getToken } from '../services/session';
 import { pendingCount, syncOnce } from '../services/syncEngine';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'auth';
 
 interface SyncState {
   online: boolean;
-  /** User switch: stay fully offline even when a connection exists. */
+  /** True when this device has a server session (needed to sync). */
+  hasToken: boolean;
+  /** User switch: stay fully offline even when a connection exists. Default true. */
   offlineMode: boolean;
   setOfflineMode(v: boolean): void;
   status: SyncStatus;
@@ -38,7 +40,8 @@ const safeGet = (k: string) => {
 
 export function SyncProvider({ children }: { children: ReactNode }) {
   const [online, setOnline] = useState(navigator.onLine);
-  const [offlineMode, setOfflineModeState] = useState(safeGet(OFFLINE_KEY) === '1');
+  // Offline is the default: nothing leaves the device until staff switch sync on.
+  const [offlineMode, setOfflineModeState] = useState(safeGet(OFFLINE_KEY) !== '0');
   const [status, setStatus] = useState<SyncStatus>('idle');
   const [lastError, setLastError] = useState<string | null>(null);
   const [hasToken, setHasToken] = useState(!!getToken());
@@ -82,7 +85,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setStatus('idle');
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        expireToken(); // keep working locally; ask to sign in again
+        disconnectFromServer(); // keep working locally; ask to connect again
         setStatus('auth');
       } else {
         setLastError(err instanceof ApiError && err.status === 0 ? 'Server unreachable' : err instanceof Error ? err.message : 'Sync failed');
@@ -111,7 +114,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, [enabled, pending, syncNow]);
 
   const value = useMemo<SyncState>(
-    () => ({ online, offlineMode, setOfflineMode, status: !hasToken && status !== 'syncing' ? 'auth' : status, pending, lastSyncAt: lastSync ?? null, lastError, syncNow }),
+    () => ({ online, offlineMode, setOfflineMode, status: !hasToken && status !== 'syncing' ? 'auth' : status, hasToken, pending, lastSyncAt: lastSync ?? null, lastError, syncNow }),
     [online, offlineMode, setOfflineMode, status, hasToken, pending, lastSync, lastError, syncNow],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

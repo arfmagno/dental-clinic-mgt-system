@@ -1,47 +1,53 @@
-import { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { LockProvider, useLock } from './hooks/useLock';
 import { SyncProvider } from './hooks/useSync';
-import { isDeviceReady } from './services/session';
 import { AddProcedure } from './pages/AddProcedure';
+import { Connect } from './pages/Connect';
 import { Dashboard } from './pages/Dashboard';
-import { Intake } from './pages/Intake';
-import { Login } from './pages/Login';
+import { PatientMode, SetupPin, Unlock } from './pages/LockScreens';
 import { PatientDetail } from './pages/PatientDetail';
+import { PatientNew } from './pages/PatientNew';
 import { Patients } from './pages/Patients';
 import { Records } from './pages/Records';
 
 export function App() {
-  // A device must be signed in once; afterwards the app opens (and works) offline without a token.
-  const [ready, setReady] = useState(isDeviceReady());
-  useEffect(() => {
-    const update = () => setReady(isDeviceReady());
-    window.addEventListener('clinic:session', update);
-    return () => window.removeEventListener('clinic:session', update);
-  }, []);
-
   return (
-    <BrowserRouter>
-      {!ready ? (
-        <Routes>
-          <Route path="*" element={<Login />} />
-        </Routes>
+    <LockProvider>
+      <BrowserRouter>
+        <Gate />
+      </BrowserRouter>
+    </LockProvider>
+  );
+}
+
+/**
+ * The staff PIN gates everything. Patient mode (isolated registration) is entered only via the
+ * Lock button; sync keeps running in the background in every stage.
+ */
+function Gate() {
+  const { stage } = useLock();
+  if (stage === 'setup') return <SetupPin />;
+  return (
+    <SyncProvider>
+      {stage === 'locked' ? (
+        <Unlock />
+      ) : stage === 'patient' ? (
+        <PatientMode />
       ) : (
-        <SyncProvider>
-          <Routes>
-            <Route path="/intake" element={<Intake />} />
-            <Route path="/login" element={<Login />} />
-            <Route element={<Layout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="patients" element={<Patients />} />
-              <Route path="patients/:id" element={<PatientDetail />} />
-              <Route path="procedures/new" element={<AddProcedure />} />
-              <Route path="records" element={<Records />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </SyncProvider>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="patients" element={<Patients />} />
+            <Route path="patients/new" element={<PatientNew />} />
+            <Route path="patients/:id" element={<PatientDetail />} />
+            <Route path="procedures/new" element={<AddProcedure />} />
+            <Route path="records" element={<Records />} />
+            <Route path="connect" element={<Connect />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
       )}
-    </BrowserRouter>
+    </SyncProvider>
   );
 }

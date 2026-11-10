@@ -1,48 +1,36 @@
 import { api } from './api';
 
 /**
- * Two separate facts:
- *  - "device ready": someone signed in on this device at least once, so the app may open
- *    (including offline). Local data is usable without a valid token.
- *  - token: only needed to sync. When it expires the app keeps working and asks to sign in again.
+ * Server session for SYNC ONLY. The app itself opens with the local staff PIN (pinService) and
+ * works offline without ever contacting the server. A token is obtained when staff switch sync on.
  */
 const TOKEN = 'clinic.token';
-const READY = 'clinic.deviceReady';
 
-const read = (k: string) => {
+export function getToken(): string | null {
   try {
-    return localStorage.getItem(k);
+    return localStorage.getItem(TOKEN);
   } catch {
     return null;
   }
-};
-const write = (k: string, v: string | null) => {
+}
+
+function setToken(v: string | null) {
   try {
-    if (v === null) localStorage.removeItem(k);
-    else localStorage.setItem(k, v);
+    if (v === null) localStorage.removeItem(TOKEN);
+    else localStorage.setItem(TOKEN, v);
   } catch {
     /* storage unavailable */
   }
-};
+  window.dispatchEvent(new Event('clinic:session'));
+}
 
-export const getToken = () => read(TOKEN);
-export const isDeviceReady = () => read(READY) === '1';
-
-export async function login(password: string): Promise<void> {
+/** Signs in to the clinic server (needs internet). */
+export async function connectToServer(password: string): Promise<void> {
   const res = await api<{ token: string }>('/auth/login', { method: 'POST', body: { password } });
-  write(TOKEN, res.token);
-  write(READY, '1');
-  window.dispatchEvent(new Event('clinic:session'));
+  setToken(res.token);
 }
 
-/** Drops the sync token only; local records stay on the device. */
-export function expireToken() {
-  write(TOKEN, null);
-  window.dispatchEvent(new Event('clinic:session'));
-}
-
-export function signOut() {
-  write(TOKEN, null);
-  write(READY, null);
-  window.dispatchEvent(new Event('clinic:session'));
+/** Drops the sync token (expired or user disconnected). Local records stay on the device. */
+export function disconnectFromServer() {
+  setToken(null);
 }
