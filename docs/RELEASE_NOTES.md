@@ -2,6 +2,30 @@
 
 Written for the clinic. The technical list is in [CHANGELOG.md](../CHANGELOG.md).
 
+## Version 0.3.0 (2026-11-11)
+
+### What's new
+
+- **A Windows program with a desktop icon.** Run `Dental-Clinic-Setup-0.3.0.exe` once. It adds **Dental Clinic** to the Start menu and the desktop, and no administrator rights are needed. The program opens with no internet, and records stay on that computer until you switch sync on.
+  - The first time you connect, type the clinic server's address (for example `192.168.1.10:3001`) and the server password.
+  - Installing from the browser (Chrome or Edge → *Install*) still works too.
+- **"Other" procedures:** choosing *Other* opens a box where you type what was done (for example *Gum treatment*). That name is what appears on the record and the PDF.
+- **Sample data for trying things out:** in a test copy, open the dashboard with `?demo` at the end of the address. Choose **Load sample data** for about 60 made-up patients with visits, payments and charts, and **Remove sample data** to delete them again. Real patients are never touched.
+
+### Changed behaviour
+
+- **Address:** one line (house no., street, barangay, city, province) plus the country, which is Philippines by default. Each patient has one address.
+  - If a patient had several addresses, the one marked primary was kept (otherwise the oldest).
+  - The country is printed only when it is not the Philippines.
+- **Citizenship** now shows nationalities (*Filipino*, *Japanese*…) instead of country names. Filipino is selected by default.
+- **Date of birth and citizenship are required** when adding or editing a patient. Older records without them still open and sync. Fill them in the next time you edit the patient.
+- **Payment methods:** *Card* and *HMO* are hidden for now. Payments already recorded that way still show correctly.
+
+### Before you update
+
+- Update the **server first** (it converts addresses automatically and keeps a backup), then open each device once while online.
+- A device still on 0.2.0 can keep syncing, but address edits made on it are not sent until it updates.
+
 ## Version 0.2.0 (2026-11-10)
 
 ### What's new

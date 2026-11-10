@@ -4,6 +4,36 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-11
+
+### Added
+- **Windows desktop app** (`apps/desktop`, Electron 45): `npm run dist:desktop` builds `Dental-Clinic-Setup-<version>.exe` (Start menu and desktop shortcuts, per-user, no admin). Serves the web build from `app://clinic` with no network; forwards `/api/*` to the clinic server address entered on the Connect page. The PWA install remains available.
+- **"Other" procedure type asks for the actual type** (required text box); the typed text is stored as the type and reopens under "Other" when editing.
+- **Sample data:** `shared/demo.ts` builds ~60 deterministic patients with contacts, visits, payments and charted teeth. *Load / Remove sample data* on the dashboard (development builds, or any build with `?demo`); `npm run seed [-- --remove]` on the server (refused in production).
+- **Migration generator:** `npm run migration:new -- <description> [--ts]`.
+- **Linting:** oxlint (TypeScript, React, hooks, imports, Vitest); `npm run lint` (fails on warnings, also checks migration names) and `npm run check` (lint + typecheck + tests).
+- **Tests:**
+  - Web moved to Vitest with jsdom, Testing Library and fake-indexeddb. Covers domain logic, service integration on IndexedDB, device upgrades v1→v3 and v2→v3, components, and the Connect page.
+  - Server: migration runner and files, sample data.
+  - Desktop: routing and address validation.
+  - Playwright end-to-end suite against the production build and the real server in Edge, including the packaged desktop `.exe`.
+  - Counts: 23 server, 39 web, 4 desktop, 16 end-to-end.
+
+### Changed
+- **Address is one line plus a country** (default Philippines) on the patient row; one address per patient.
+- **Citizenship is shown as a nationality** ("Filipino") and defaults to Filipino. It is still stored as the ISO country code.
+- **Date of birth and citizenship are required** in the forms. The server stays lenient, so older records still sync.
+- **Migrations are named `<UTC YYYYMMDDHHmmss>-<kebab-description>.sql`** (or `.ts` when code is needed) and loaded from the folder. `_migrations` is keyed by that version. Existing databases are converted on first start (1 → `20261110090000`, 2 → `20261110120000`). The runner refuses a pending migration older than one already applied.
+- The initial schema is now a plain `.sql` file.
+- `ctx.backfill` takes query parameters.
+
+### Removed
+- `patient_addresses` table (migration `20261111090000-single-address`, Dexie version 3; both use the frozen `shared/legacy-v3.ts`). A 0.2.0 device that still pushes addresses is ignored safely.
+- Card and HMO from the payment method lists (`PAYMENT_METHODS_OFFERED`). Both remain valid stored values.
+
+### Fixed
+- Lint findings: expression statements used for side effects (sync chip, patient picker keys, PDF legend), effect dependencies, and `any` at the database boundary.
+
 ## [0.2.0] - 2026-11-10
 
 ### Added

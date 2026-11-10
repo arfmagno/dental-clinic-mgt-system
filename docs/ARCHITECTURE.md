@@ -10,7 +10,7 @@
 ## Big picture
 
 ```
- ┌──────────────── device (PWA) ────────────────┐            ┌──────────── server ────────────┐
+ ┌──────── device (PWA or desktop app) ─────────┐            ┌──────────── server ────────────┐
  │ UI (React)                                   │            │ http      routes (thin)        │
  │   └ hooks (live queries)                     │            │   └ services  rules            │
  │       └ services (use cases)                 │  HTTPS     │       └ repositories  SQL      │
@@ -18,6 +18,8 @@
  │ Service worker: caches the app for offline   │ push/pull  │        └ SQLite (Postgres later)│
  └──────────────────────────────────────────────┘            └────────────────────────────────┘
 ```
+
+The same web build runs in the browser (installed as a PWA) and inside the Windows desktop app (`apps/desktop`, Electron). In the desktop app it is served from `app://clinic` straight from the install folder instead of a service worker, and `/api` calls are forwarded by the desktop shell to the clinic server address saved on the Connect page.
 
 The UI never talks to the server for normal work. It reads and writes the on-device database; a background sync engine reconciles with the server. That is what makes offline use the *normal* path and not a special mode.
 
@@ -50,7 +52,7 @@ Each layer depends only on the one below it, and only through a narrow interface
 
 ### Shared (`packages/shared`)
 
-Types, vocabularies (`vocab.ts`), the FDI tooth catalog, outlines and layout (`teeth.ts`), name formatting (`names.ts`), countries (`countries.ts`), column validation (`validation.ts`), the frozen v1→v2 data transforms (`legacy.ts`), and the **sync table definitions** (`SYNC_TABLES`, `TABLE_COLUMNS`). Both sides import it, so they cannot disagree on the wire format or on what a valid value is.
+Types, vocabularies (`vocab.ts`), the FDI tooth catalog, outlines and layout (`teeth.ts`), name formatting (`names.ts`), countries (`countries.ts`) and nationalities (`nationalities.ts`), column validation (`validation.ts`), the frozen data transforms used by migrations and device upgrades (`legacy.ts` v1→v2, `legacy-v3.ts` v2→v3), the sample data generator (`demo.ts`), and the **sync table definitions** (`SYNC_TABLES`, `TABLE_COLUMNS`). Both sides import it, so they cannot disagree on the wire format or on what a valid value is.
 
 ## Data model
 
@@ -58,7 +60,6 @@ Every synced table carries: `id` (UUID, generated on the device), `createdAt`, `
 
 ```
 patients 1 ──< patient_contacts          (type, value, label, isPrimary)
-patients 1 ──< patient_addresses         (label, street, district, city, province, postalCode, countryCode, isPrimary)
 patients 1 ──< procedures                (type, date, time, costCents, remarks)
 procedures 1 ──< payments                (amountCents, paidAt, method, remarks)
 patients 1 ──< dental_records >── 0..1 procedures     (one dated chart entry; usually from a procedure)
@@ -67,14 +68,17 @@ dental_records 1 ──< tooth_entries >── teeth           (condition, remar
 teeth                                    (server-only reference: the 52 FDI teeth, name, kind, quadrant)
 ```
 
-`patients` holds `salutation, firstName, middleName, lastName, birthDate, occupation, civilStatus, citizenshipCode, photo, remarks`. Since 0.2.0 the schema is in third normal form: nothing derivable is stored, and each fact has one home.
+`patients` holds `salutation, firstName, middleName, lastName, birthDate, occupation, civilStatus, citizenshipCode, addressLine1, addressCountryCode, photo, remarks`. Nothing derivable is stored, and each fact has one home.
 
 Design decisions worth knowing:
 
 - **Names are stored as parts; the full name is derived** (`formatName` in `shared/names.ts`), in whichever form a screen needs ("Ms. Maria Clara Santos", "Santos, Maria C."). Sorting and A–Z grouping use the last name, ignoring case and accents.
 - **Countries are ISO 3166 alpha-2 codes** (`PH`). Names come from the browser (`Intl.DisplayNames`), so there is no country table to maintain.
-- **Small fixed vocabularies are validated codes, not lookup tables.** Salutation, civil status, contact type, address label, payment method and tooth condition are lists in `shared/vocab.ts`, enforced on the server by `validateColumns`. A table would add joins and sync rows without adding information. The tooth catalog is the exception: it is a real reference entity (52 rows with attributes) and `tooth_entries.tooth` has a foreign key to it. Procedure types stay free text until there is a price list (see roadmap).
-- **One primary per list.** Each patient has at most one primary contact and one primary address. The form enforces it; lists show the primary first.
+- **Citizenship is stored as the country code and shown as a nationality** (`PH` → "Filipino", `shared/nationalities.ts`). The browser can name countries but not nationalities, hence the small map. A code is unambiguous (*Filipino*, *Filipina* and *Pilipino* are all `PH`) and needs no migration if a label changes. Default: Filipino.
+- **One address per patient, as a line plus a country** (0.3.0). Structured fields (barangay, city, postal code) were dropped as unnecessary for the clinic; the line is free text. The country is shown only when it is not the Philippines.
+- **Date of birth and citizenship are required by the forms, not by the server**, so records created before they were required keep syncing.
+- **Small fixed vocabularies are validated codes, not lookup tables.** Salutation, civil status, contact type, payment method and tooth condition are lists in `shared/vocab.ts`, enforced on the server by `validateColumns`. A table would add joins and sync rows without adding information. The tooth catalog is the exception: it is a real reference entity (52 rows with attributes) and `tooth_entries.tooth` has a foreign key to it. Procedure types are chosen from a list; *Other* stores the typed text, so they stay free text until there is a price list (see roadmap). Payment methods offered in forms (`PAYMENT_METHODS_OFFERED`) leave out card and HMO for now; both remain valid stored values.
+- **One primary per list.** Each patient has exactly one primary contact. The form enforces it; lists show the primary first.
 - **Balances are derived from payments:** `balance = costCents − Σ payments.amountCents`. A procedure can have any number of payments (part payments, different methods).
 - **The chart is derived, not stored.** A patient's current teeth state is "the latest `tooth_entries` per tooth, replaying dental records oldest→newest". That gives full history for free ("view chart at this point"), makes backdated records correct (ordering is by the record's own date/time, not when it was typed), and avoids conflicting writes to a single mutable chart row when two devices sync.
 - **Creating a procedure always creates a dental record** (and its tooth entries) in one local transaction (`services/procedureService.ts`), so chart and history cannot drift apart.
@@ -96,11 +100,21 @@ Local-first, **last-write-wins per row** (by `updatedAt`).
 
 Known limits (accepted for v1): conflicts are whole-row, so two devices editing the same row offline keep only the later edit; sync trusts each device's clock within the clamp. Payments recorded by staff sync like any other row; each payment is its own row, so two devices recording payments offline never overwrite each other. Server-authoritative features (queue numbers, gateway payment confirmations) must **not** use this path; see the roadmap.
 
-**Schema upgrades on devices.** When a release changes the schema, the device's database upgrades itself (Dexie versions) using the **same frozen transforms** as the server migration (`shared/legacy.ts`), and rows created by the upgrade get **deterministic ids** (a hash of the source row id). A device that upgrades offline and the server therefore produce the same rows, and syncing them later merges instead of duplicating.
+**Schema upgrades on devices.** When a release changes the schema, the device's database upgrades itself (Dexie versions) using the **same frozen transforms** as the server migration (`shared/legacy.ts`, `shared/legacy-v3.ts`), and rows created by the upgrade get **deterministic ids** (a hash of the source row id). A device that upgrades offline and the server therefore produce the same rows, and syncing them later merges instead of duplicating.
 
 ## Offline packaging
 
 `vite-plugin-pwa` generates a service worker that precaches every built asset (including the lazily loaded PDF code) plus a web manifest and icons. After the first visit the app opens with no network, and can be installed as a standalone window. `registerType: 'autoUpdate'` applies new versions on next launch. `index.html`, `sw.js` and the manifest are served `no-cache` so updates reach installed copies; hashed assets are `immutable`.
+
+### Windows desktop app (`apps/desktop`)
+
+An Electron shell around the same web build, packaged by electron-builder into an NSIS installer (`Dental-Clinic-Setup-<version>.exe`, per-user, Start menu and desktop shortcuts).
+
+- **Serving.** The web build ships in `resources/web` and is served from the privileged scheme `app://clinic`. It is a secure origin, so IndexedDB, Web Crypto (the PIN) and the router behave exactly as in the browser. Unknown paths fall back to `index.html`, and nothing outside the web folder can be read. No service worker is registered; the files are already on disk.
+- **Sync.** Requests to `app://clinic/api/*` are forwarded by the main process to the server address saved in the user's app-data folder (`settings.json`). Staff enter that address on the Connect page. The page only ever talks to its own origin, so the server needs no CORS setting and a plain `http://` server on the clinic LAN works. With no address set, the forwarder answers 503; with an unreachable server, 502.
+- **Hardening.** Context isolation, sandbox and no Node integration. The preload exposes only `getServerUrl` and `setServerUrl`; the address is validated in the main process (http/https only, no credentials). Navigation is pinned to `app://clinic`, links open in the default browser, and only a single instance runs.
+- **Data** lives in the Electron profile of the Windows user (IndexedDB). Uninstalling keeps it unless the user deletes the app-data folder.
+- **Updates** are a new installer for now (no auto-update channel, and the installer is not code-signed).
 
 **Opening the app needs no server.** On first launch staff create a **local PIN** (4–6 digits, stored as a salted PBKDF2 hash on the device, with back-off after 5 wrong tries). The PIN opens each new session and is the only way out of *patient mode*. **Sync is off by default**; switching it on asks once for the clinic server password, which returns the sync token. If the token expires or is revoked the app switches back to offline and keeps working. A forgotten PIN is reset by proving the server password (online), and local records are kept.
 
@@ -139,8 +153,8 @@ All SQL goes through `SqlDriver` and sticks to portable constructs (`?` placehol
 | **Online payments** | **Itemised `payments` table exists since 0.2.0** (amount, method, paidAt); balance is already `cost − Σ payments` | Add `providerRef` and `status` columns for gateway payments. Gateway webhooks write payments on the server (server-authoritative), outside LWW sync. |
 | **Appointments / reservations** | UUID ids created anywhere; patient id optional on future rows | `appointments` (patient or guest, start/end, status, procedure type) and clinic hours; slot conflicts must be decided on the server (online-only), not by LWW. |
 | **Cost per procedure shown to patients** | `PROCEDURE_TYPES` already maps type → default condition | Promote to a `procedure_types` table (name, default cost, default condition, active); `procedures.type` stays as a text snapshot. A public read endpoint. |
-| **HMO accreditation** | Payment method `hmo` already exists | `hmo_providers`, `patient_hmo` (member no., validity), and coverage fields on procedures. |
-| **Maps / directions** | Public route category exists (`auth: 'public'`); patient addresses are structured (city, province, postal code, country) | A clinic profile (address, coordinates, hours) and a public `GET /clinic` endpoint. |
+| **HMO accreditation** | Payment method `hmo` already exists (hidden from the forms until accreditation; re-enable it in `PAYMENT_METHODS_OFFERED`) | `hmo_providers`, `patient_hmo` (member no., validity), and coverage fields on procedures. |
+| **Maps / directions** | Public route category exists (`auth: 'public'`); each patient has an address line and country | A clinic profile (address, coordinates, hours) and a public `GET /clinic` endpoint. |
 | **Queueing** | Health/real-time not needed yet | `queue_tickets` with a server-issued counter; online-only, outside LWW sync. |
 | **Reports & analytics** | Money and dates are normalised; derived fields are computable | Server-side aggregate queries behind a `reports:read` permission, or client-side over the local DB for single-device use. |
 | **Multiple clinics** | One config object; migrations with backfill | `clinicId` on every table (migration + backfill), carried in the token, applied in repositories. |

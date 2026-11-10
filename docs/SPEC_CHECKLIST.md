@@ -1,6 +1,6 @@
 # Spec checklist
 
-Every requested item, where it lives, and how it was verified. **Unit** = automated test in the repo (`npm test`). **E2E** = exercised in headless Edge against the real server and production build (v0.2.0 run: 63/63 checks passed). **Visual** = screenshot reviewed. **Not verified** is said plainly.
+Every requested item, where it lives, and how it was verified. **Unit** = automated test in the repo (`npm test`). **E2E** = Playwright spec in `e2e/` (`npm run e2e`), run in Edge against the real server and production build (0.3.0: 16/16 passed). Up to 0.2.0, E2E meant a one-off script (63/63 checks), now replaced by the specs. **Visual** = screenshot reviewed. **Not verified** is said plainly.
 
 ## Original specification (v0.1.0)
 
@@ -41,6 +41,22 @@ Every requested item, where it lives, and how it was verified. **Unit** = automa
 | 13 | Clearer folder names (services instead of apps) | planned move: `apps/server → services/api`, `apps/web → services/web`, `packages/shared → shared` | **Pending.** Blocked while the dev server holds the folders open; done as a separate commit |
 | 14 | Verify everything; ask for design decisions | this file; decisions asked: folders, normalization scope, unlock/sign-in model | — |
 
+## Change request (v0.3.0)
+
+| # | Request | Where | Verified |
+| --- | --- | --- | --- |
+| 1 | Address = address line 1 + country; no multiple addresses | `Patient.addressLine1/addressCountryCode`, `PatientForm.tsx`, migration `20261111090000-single-address` + Dexie v3 via `shared/legacy-v3.ts` | Unit (transform, device upgrade v1→v3 and v2→v3, server migration v2→v3), Component (one address field), E2E (form, foreign address shows country, 0.2.0 device upgraded in a real browser, server receives the line) |
+| 2 | "Other" procedure type has an input for the type | `ProcedureTypeField.tsx`, `domain/procedureType.ts`, `OTHER_PROCEDURE` | Unit, Component, E2E (required; stored as typed; edit reopens under Other) |
+| 3 | Hide HMO and card payment for now | `PAYMENT_METHODS_OFFERED` used by both payment forms | Component, E2E (method lists in add procedure and record payment) |
+| 4 | Citizenship as nationality, not country; default Filipino | `shared/nationalities.ts`, `NationalitySelect.tsx`, detail page and PDF | Unit, Component, E2E |
+| 5 | Date of birth and citizenship required | `validatePatient` (also not in the future) | Unit, Component, E2E |
+| 6 | Script to create a migration; standard naming | `npm run migration:new`, `<UTC YYYYMMDDHHmmss>-<kebab>.sql or .ts`, `lint:migrations` | Unit (names, generator, loader, ordering guard); run from the repo root |
+| 7 | SQL migrations as .sql | `20261110090000-initial-schema.sql`; `.ts` only where code is needed | Unit (loader runs .sql and .ts) |
+| 8 | Linting | oxlint, `.oxlintrc.json`, `npm run lint` | Runs clean (0 warnings) |
+| 9 | Tests everywhere: frontend, backend, integration, e2e | Server 23, web 39 (domain, IndexedDB integration, upgrades, components), desktop 4, Playwright 16 | All pass |
+| 10 | Bundled app opened from a shortcut | PWA install (unchanged) **and** Windows installer `apps/desktop` | E2E drives the packaged `.exe` (offline, data kept across launches, sync through the forwarder); installer built. Installing via the NSIS wizard was **not** run in automation |
+| 11 | Dummy data to examine the app | `shared/demo.ts`, dashboard *Load sample data*, `npm run seed` | Unit (valid, consistent, deterministic), Integration (load/remove), E2E (list with 60 patients) |
+
 ## Design decisions recorded
 
 | Decision | Choice | Source |
@@ -50,10 +66,15 @@ Every requested item, where it lives, and how it was verified. **Unit** = automa
 | Unlock / sign-in | One local PIN for opening the app and leaving patient mode; server password only to switch on sync (and to reset the PIN) | Asked, chosen by the owner |
 | Grouping letter | Last name | Default, see release notes |
 | Page size | 25 | Default |
-| Primaries | At most one contact and one address | Default |
+| Primaries | Exactly one primary contact | Default |
+| Migration naming | UTC timestamp + kebab description (`.sql`, or `.ts` when code is needed) | Asked, chosen by the owner |
+| Bundling | Keep the PWA and add a Windows installer (Electron) | Asked, chosen by the owner ("Both") |
+| Desktop to server | Desktop shell forwards `/api` to a saved address (no CORS, LAN http works) | Default, see ARCHITECTURE.md |
+| Linter | oxlint (typescript-eslint does not support TypeScript 7) | Default |
 
 ## Not verified
 
 - Browsers other than Edge; phones and tablets; camera capture.
+- Running the NSIS installer wizard itself (the packaged app it installs is tested); the installer is not code-signed.
 - Docker image build and run.
 - Performance with thousands of patients.
