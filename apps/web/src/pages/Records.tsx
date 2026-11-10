@@ -1,18 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { balanceCents } from '@clinic/shared';
+import { fold } from '@clinic/shared';
 import { formatDate, formatMoney, formatTime } from '../domain/format';
 import { useAllProcedures, type ProcedureRow } from '../hooks/useData';
 
 type SortKey = 'date' | 'patient' | 'type' | 'cost' | 'paid' | 'balance';
 
+const balanceOf = (r: ProcedureRow) => r.procedure.costCents - r.paidCents;
+
 const sorters: Record<SortKey, (r: ProcedureRow) => string | number> = {
   date: (r) => `${r.procedure.date}${r.procedure.time}`,
-  patient: (r) => r.patientName.toLowerCase(),
+  patient: (r) => r.patientSortKey,
   type: (r) => r.procedure.type.toLowerCase(),
   cost: (r) => r.procedure.costCents,
-  paid: (r) => r.procedure.paidCents,
-  balance: (r) => balanceCents(r.procedure),
+  paid: (r) => r.paidCents,
+  balance: balanceOf,
 };
 
 const columns: { key: SortKey; label: string; right?: boolean }[] = [
@@ -31,9 +33,9 @@ export function Records() {
   const [onlyOwing, setOnlyOwing] = useState(false);
 
   const shown = useMemo(() => {
-    const f = filter.trim().toLowerCase();
+    const f = fold(filter.trim());
     const list = (rows ?? []).filter(
-      (r) => (!f || `${r.patientName} ${r.procedure.type} ${r.procedure.remarks}`.toLowerCase().includes(f)) && (!onlyOwing || balanceCents(r.procedure) > 0),
+      (r) => (!f || fold(`${r.patientName} ${r.procedure.type} ${r.procedure.remarks}`).includes(f)) && (!onlyOwing || balanceOf(r) > 0),
     );
     const get = sorters[sort.key];
     return list.sort((a, b) => {
@@ -42,7 +44,7 @@ export function Records() {
     });
   }, [rows, filter, onlyOwing, sort]);
 
-  const totals = shown.reduce((t, r) => ({ cost: t.cost + r.procedure.costCents, paid: t.paid + r.procedure.paidCents }), { cost: 0, paid: 0 });
+  const totals = shown.reduce((t, r) => ({ cost: t.cost + r.procedure.costCents, paid: t.paid + r.paidCents }), { cost: 0, paid: 0 });
   const toggle = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: key === 'date' ? -1 : 1 }));
 
   return (
@@ -76,16 +78,20 @@ export function Records() {
               {shown.length === 0 && (
                 <tr><td colSpan={6} className="muted pad">No procedures found.</td></tr>
               )}
-              {shown.map(({ procedure: p, patientName }) => (
-                <tr key={p.id}>
-                  <td>{formatDate(p.date)}<div className="muted small">{formatTime(p.time)}</div></td>
-                  <td><Link to={`/patients/${p.patientId}`}>{patientName}</Link></td>
-                  <td>{p.type}{p.remarks && <div className="muted small clamp">{p.remarks}</div>}</td>
-                  <td className="right">{formatMoney(p.costCents)}</td>
-                  <td className="right">{formatMoney(p.paidCents)}</td>
-                  <td className={`right ${balanceCents(p) > 0 ? 'owed' : ''}`}>{formatMoney(balanceCents(p))}</td>
-                </tr>
-              ))}
+              {shown.map((r) => {
+                const p = r.procedure;
+                const bal = balanceOf(r);
+                return (
+                  <tr key={p.id}>
+                    <td>{formatDate(p.date)}<div className="muted small">{formatTime(p.time)}</div></td>
+                    <td><Link to={`/patients/${p.patientId}`}>{r.patientName}</Link></td>
+                    <td>{p.type}{p.remarks && <div className="muted small clamp">{p.remarks}</div>}</td>
+                    <td className="right">{formatMoney(p.costCents)}</td>
+                    <td className="right">{formatMoney(r.paidCents)}</td>
+                    <td className={`right ${bal > 0 ? 'owed' : ''}`}>{formatMoney(bal)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
             {shown.length > 0 && (
               <tfoot>

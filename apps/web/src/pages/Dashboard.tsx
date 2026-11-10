@@ -3,11 +3,13 @@ import { formatDate, formatMoney } from '../domain/format';
 import { usePatientSummaries, useRecentActivity } from '../hooks/useData';
 
 const tiles = [
-  { to: '/intake', icon: '➕', title: 'Add patient', hint: 'Opens the patient-facing form' },
+  { to: '/patients/new', icon: '➕', title: 'Add patient', hint: 'Register a new patient' },
   { to: '/procedures/new', icon: '🩺', title: 'Add procedure', hint: 'Record a treatment' },
   { to: '/patients?focus=1', icon: '🔎', title: 'Find patient', hint: 'Search records' },
   { to: '/records', icon: '📋', title: 'All records', hint: 'Every procedure, sortable' },
 ];
+
+const KIND_LABEL = { patient: 'Patient', procedure: 'Procedure', payment: 'Payment' } as const;
 
 export function Dashboard() {
   const activity = useRecentActivity(8);
@@ -37,14 +39,14 @@ export function Dashboard() {
         {activity === undefined ? (
           <p className="muted">Loading…</p>
         ) : activity.length === 0 ? (
-          <p className="muted">Nothing yet. Add your first patient to get started.</p>
+          <p className="muted">Nothing yet. <Link to="/patients/new">Add your first patient</Link> to get started.</p>
         ) : (
           <ul className="activity">
             {activity.map((a) => (
               <li key={a.id}>
                 <Link to={`/patients/${a.patientId}`}>
                   <span className={`badge ${a.action}`}>{a.action}</span>
-                  <span className="grow">{a.kind === 'patient' ? 'Patient' : 'Procedure'}: <strong>{a.title}</strong></span>
+                  <span className="grow">{KIND_LABEL[a.kind]}: <strong>{a.title}</strong></span>
                   <time className="muted small" dateTime={a.at}>{formatDate(a.at)} {new Date(a.at).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}</time>
                 </Link>
               </li>
