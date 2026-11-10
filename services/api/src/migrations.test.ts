@@ -4,7 +4,7 @@ import { mkdtemp, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { deterministicUuid } from '@clinic/shared';
-import { openDriver } from './infra/db/open.js';
+import { openDriver } from './infrastructure/db/open.js';
 import { migrate } from './migrate.js';
 import { checkMigrationFiles, loadMigrations, MIGRATIONS_DIR } from './migrations/index.js';
 import { migrationTemplate, newMigrationFileName, toKebab, timestampOf } from './migrations/generate.js';

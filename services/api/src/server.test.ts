@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadConfig } from './config.js';
-import { openDriver } from './infra/db/open.js';
-import { TokenSigner } from './infra/auth/tokens.js';
+import { openDriver } from './infrastructure/db/open.js';
+import { TokenSigner } from './infrastructure/auth/tokens.js';
 import { migrate } from './migrate.js';
 import { AuthService, LoginThrottle, PasswordAuthProvider } from './services/authService.js';
 import { SyncService } from './services/syncService.js';

@@ -1,7 +1,7 @@
 // Composition root: the ONLY place concrete implementations are chosen and wired together.
 import { loadConfig } from './config.js';
-import { openDriver } from './infra/db/open.js';
-import { TokenSigner } from './infra/auth/tokens.js';
+import { openDriver } from './infrastructure/db/open.js';
+import { TokenSigner } from './infrastructure/auth/tokens.js';
 import { migrate } from './migrate.js';
 import { AuthService, PasswordAuthProvider } from './services/authService.js';
 import { SyncService } from './services/syncService.js';

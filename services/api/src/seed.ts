@@ -1,5 +1,5 @@
 import { buildDemoData, SYNC_TABLES, type DemoOptions, type PushResponse } from '@clinic/shared';
-import type { SqlDriver } from './infra/db/driver.js';
+import type { SqlDriver } from './infrastructure/db/driver.js';
 import { SyncService } from './services/syncService.js';
 
 /**

@@ -22,10 +22,10 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | --- | --- |
 | `index.ts` | Composition root: load config → open DB → migrate → wire services → listen; graceful shutdown |
 | `config.ts` | `loadConfig(env)`; the only place that reads environment variables; production guards |
-| `infra/db/driver.ts` | The `SqlDriver` / `SqlExecutor` interfaces and the portable-SQL rules |
-| `infra/db/sqlite.ts` | SQLite adapter. Serialises access with a mutex so a transaction is never interleaved with other requests; nested transactions are savepoints |
-| `infra/db/open.ts` | Picks the adapter from `DATABASE_URL` |
-| `infra/auth/tokens.ts` | `TokenSigner`: HMAC-SHA256 signed expiring tokens |
+| `infrastructure/db/driver.ts` | The `SqlDriver` / `SqlExecutor` interfaces and the portable-SQL rules |
+| `infrastructure/db/sqlite.ts` | SQLite adapter. Serialises access with a mutex so a transaction is never interleaved with other requests; nested transactions are savepoints |
+| `infrastructure/db/open.ts` | Picks the adapter from `DATABASE_URL` |
+| `infrastructure/auth/tokens.ts` | `TokenSigner`: HMAC-SHA256 signed expiring tokens |
 | `migrate.ts` | Migration runner (ordering by version, refuses out-of-order, transactions, backup, FK check, `backfill`/`insert`, legacy integer-id conversion) |
 | `migrate-cli.ts` | `npm run migrate` entry point |
 | `migrations/` | Migration files `<UTC YYYYMMDDHHmmss>-<kebab>.sql` or `.ts` (`20261110090000-initial-schema.sql`, `20261110120000-normalize-patients.ts`, `20261111090000-single-address.ts`); `index.ts` (file-name rules, `checkMigrationFiles`, `loadMigrations`, `LEGACY_VERSIONS`); `generate.ts` (new names and templates); `types.ts` |
@@ -93,7 +93,7 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 - **Never store a full name.** Use `formatName` / `formalName`.
 - **Buttons say what they do** ("Add patient", not "Submit"), and every form has Cancel.
 - **Colours come from CSS variables** in `styles.css` (defined for `[data-theme=light]` and `[data-theme=dark]`), never hard-coded in components.
-- **Server SQL must stay portable** (see `infra/db/driver.ts`).
+- **Server SQL must stay portable** (see `infrastructure/db/driver.ts`).
 - **Every new `/api` route must declare `config: { auth: ... }`** or it will be denied.
 - Comments explain *why* (constraints, trade-offs), not what the line does.
 

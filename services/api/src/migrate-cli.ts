@@ -1,6 +1,6 @@
 // `npm run migrate -w @clinic/server` — applies pending migrations without starting the server.
 import { loadConfig } from './config.js';
-import { openDriver } from './infra/db/open.js';
+import { openDriver } from './infrastructure/db/open.js';
 import { migrate } from './migrate.js';
 
 const config = loadConfig();

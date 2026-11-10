@@ -1,5 +1,5 @@
 import { BASE_COLUMNS, BOOLEAN_COLUMNS, TABLE_COLUMNS, type AnyRow, type SyncTable } from '@clinic/shared';
-import type { SqlExecutor, SqlParam } from '../infra/db/driver.js';
+import type { SqlExecutor, SqlParam } from '../infrastructure/db/driver.js';
 
 /**
  * Data access for synced tables. Pure SQL, no business rules (those live in services/).

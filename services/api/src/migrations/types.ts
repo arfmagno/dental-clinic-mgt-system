@@ -1,7 +1,7 @@
-import type { SqlExecutor } from '../infra/db/driver.js';
+import type { SqlExecutor } from '../infrastructure/db/driver.js';
 
 export interface MigrationContext {
-  /** Transaction-scoped executor. Write portable SQL only (see infra/db/driver.ts). */
+  /** Transaction-scoped executor. Write portable SQL only (see infrastructure/db/driver.ts). */
   db: SqlExecutor;
   /**
    * Update rows AND mark them as changed for sync (new serverSeq + updatedAt), so every

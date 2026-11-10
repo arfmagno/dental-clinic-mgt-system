@@ -2,7 +2,7 @@ import type { SqlDriver } from './driver.js';
 import { SqliteDriver } from './sqlite.js';
 
 /**
- * Picks the adapter from DATABASE_URL. To move to Postgres later: add infra/db/postgres.ts
+ * Picks the adapter from DATABASE_URL. To move to Postgres later: add infrastructure/db/postgres.ts
  * implementing SqlDriver, add one branch here, and run the same migrations. Nothing else changes.
  */
 export function openDriver(url: string): SqlDriver {

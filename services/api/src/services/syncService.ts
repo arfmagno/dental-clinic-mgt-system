@@ -9,7 +9,7 @@ import {
   type PushResponse,
   type SyncTable,
 } from '@clinic/shared';
-import type { SqlDriver } from '../infra/db/driver.js';
+import type { SqlDriver } from '../infrastructure/db/driver.js';
 import { SyncRepository } from '../repositories/syncRepository.js';
 
 /** A device clock further ahead than this is clamped, so one bad clock cannot win every conflict. */

@@ -39,7 +39,7 @@ export function newMigrationFileName(description: string, ext: 'sql' | 'ts', exi
 export function migrationTemplate(ext: 'sql' | 'ts', description: string): string {
   if (ext === 'sql') {
     return `-- ${description}
--- Runs once, inside a transaction, before the server starts. Keep it portable (see infra/db/driver.ts).
+-- Runs once, inside a transaction, before the server starts. Keep it portable (see infrastructure/db/driver.ts).
 -- Synced tables need: id TEXT PRIMARY KEY, createdAt, updatedAt, isDeleted INTEGER NOT NULL DEFAULT 0,
 -- serverSeq INTEGER NOT NULL, and an index on serverSeq. Prefer ADD COLUMN ... DEFAULT ... (additive).
 -- To change existing synced rows so devices receive the change, use a .ts migration with ctx.backfill.

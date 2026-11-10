@@ -3,7 +3,7 @@
 // Refuses to run when NODE_ENV=production.
 import { SYNC_TABLES } from '@clinic/shared';
 import { loadConfig } from '../src/config.js';
-import { openDriver } from '../src/infra/db/open.js';
+import { openDriver } from '../src/infrastructure/db/open.js';
 import { migrate } from '../src/migrate.js';
 import { seedDemo, unseedDemo } from '../src/seed.js';
 

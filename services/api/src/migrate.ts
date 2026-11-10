@@ -1,4 +1,4 @@
-import type { SqlDriver, SqlExecutor, SqlParam } from './infra/db/driver.js';
+import type { SqlDriver, SqlExecutor, SqlParam } from './infrastructure/db/driver.js';
 import type { Migration, MigrationContext } from './migrations/types.js';
 import { LEGACY_VERSIONS, loadMigrations } from './migrations/index.js';
 import { SyncRepository } from './repositories/syncRepository.js';

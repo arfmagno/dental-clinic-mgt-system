@@ -35,7 +35,7 @@ Each layer depends only on the one below it, and only through a narrow interface
 | HTTP | `http/` | Parse request, check declared protection, call a service, shape response | Contain business rules or SQL |
 | Services | `services/` | Rules: validation, conflict resolution, authentication, authorization | Know about HTTP or SQL dialects |
 | Repositories | `repositories/` | SQL for a table family | Contain rules |
-| Infrastructure | `infra/` | `SqlDriver` port + SQLite adapter, token signing | Be imported by anything except wiring/repositories |
+| Infrastructure | `infrastructure/` | `SqlDriver` port + SQLite adapter, token signing | Be imported by anything except wiring/repositories |
 | Config | `config.ts` | The **only** reader of `process.env` | |
 
 `buildApp(deps)` takes its dependencies as arguments, so tests build the whole app against an in-memory database with no mocks.
@@ -143,7 +143,7 @@ Patients are **not** isolated by default; staff enter patient mode only with the
 
 ## Moving to Postgres
 
-All SQL goes through `SqlDriver` and sticks to portable constructs (`?` placeholders, TEXT/INTEGER, `ON CONFLICT`, `RETURNING`, booleans as 0/1). To move: add `infra/db/postgres.ts` implementing `SqlDriver` (rewrite `?` to `$n`, map `backup` to `pg_dump`/managed snapshots, no-op the foreign-key suspension), add one branch in `infra/db/open.ts`, set `DATABASE_URL=postgres://…`. Migrations, repositories and services are unchanged. Copy existing data once with a script that reads the SQLite file and pushes through the same tables.
+All SQL goes through `SqlDriver` and sticks to portable constructs (`?` placeholders, TEXT/INTEGER, `ON CONFLICT`, `RETURNING`, booleans as 0/1). To move: add `infrastructure/db/postgres.ts` implementing `SqlDriver` (rewrite `?` to `$n`, map `backup` to `pg_dump`/managed snapshots, no-op the foreign-key suspension), add one branch in `infrastructure/db/open.ts`, set `DATABASE_URL=postgres://…`. Migrations, repositories and services are unchanged. Copy existing data once with a script that reads the SQLite file and pushes through the same tables.
 
 ## Roadmap: how today's design leaves room (not implemented)
 

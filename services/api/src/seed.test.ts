@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildDemoData, SYNC_TABLES, validateColumns } from '@clinic/shared';
-import { openDriver } from './infra/db/open.js';
+import { openDriver } from './infrastructure/db/open.js';
 import { migrate } from './migrate.js';
 import { seedDemo, unseedDemo } from './seed.js';
 

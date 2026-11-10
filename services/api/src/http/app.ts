@@ -4,7 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
 import type { Config } from '../config.js';
-import type { SqlDriver } from '../infra/db/driver.js';
+import type { SqlDriver } from '../infrastructure/db/driver.js';
 import { AuthError, can, type AuthService, type Permission, type Principal } from '../services/authService.js';
 import type { SyncService } from '../services/syncService.js';
 import { ValidationError } from '../services/syncService.js';

@@ -111,7 +111,7 @@ A device may upgrade while offline and sync later. Its own upgrade must therefor
 
 1. **Never edit, rename or re-date a migration that has shipped.** Fix mistakes with a new one. The same applies to `legacy*.ts`: add a new module for the next restructuring.
 2. Prefer changes that are **additive and defaulted** (`ADD COLUMN … DEFAULT …`) so devices running the previous app version keep syncing while the new one rolls out. When a destructive change is unavoidable, convert data on both sides with shared, deterministic transforms.
-3. Write portable SQL (see `infra/db/driver.ts`) so the same migration runs on Postgres later.
+3. Write portable SQL (see `infrastructure/db/driver.ts`) so the same migration runs on Postgres later.
 4. **Deploy order:** server first (it migrates itself), then clients update automatically (service worker) or through the new installer (desktop).
 5. Test the backfill on a copy of production data. Copy the file from `data/backups`, with its `-wal` file if present.
 
