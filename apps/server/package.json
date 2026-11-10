@@ -13,13 +13,13 @@
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.6",
-    "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
   "dependencies": {
     "@fastify/cors": "^11.4.1",
     "@fastify/static": "^10.1.10",
     "better-sqlite3": "^11.10.0",
-    "fastify": "^5.12.8"
+    "fastify": "^5.12.8",
+    "tsx": "^4.23.15"
   }
 }
