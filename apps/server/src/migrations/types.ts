@@ -15,6 +15,8 @@ export interface MigrationContext {
     set: Record<string, unknown> | ((row: Record<string, any>) => Record<string, unknown>),
     where?: string,
   ): Promise<number>;
+  /** Insert a new synced row (assigns serverSeq so devices pull it). Keys are column names. */
+  insert(table: string, row: Record<string, unknown>): Promise<void>;
 }
 
 export interface Migration {

@@ -27,6 +27,16 @@ function makeContext(db: SqlExecutor): MigrationContext {
       }
       return rows.length;
     },
+    async insert(table, row) {
+      if (!ident.test(table)) throw new Error(`Bad table name: ${table}`);
+      const cols = Object.keys(row);
+      for (const c of cols) if (!ident.test(c)) throw new Error(`Bad column name: ${c}`);
+      const seq = await repo.nextSeq();
+      await db.run(
+        `INSERT INTO ${table} (${[...cols, 'serverSeq'].join(', ')}) VALUES (${[...cols, 'serverSeq'].map(() => '?').join(', ')})`,
+        [...cols.map((c) => row[c] as any), seq],
+      );
+    },
   };
 }
 

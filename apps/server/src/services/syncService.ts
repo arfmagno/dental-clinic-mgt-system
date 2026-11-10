@@ -2,6 +2,7 @@ import {
   BASE_COLUMNS,
   SYNC_TABLES,
   TABLE_COLUMNS,
+  validateColumns,
   type AnyRow,
   type PullResponse,
   type PushRequest,
@@ -77,6 +78,9 @@ export class SyncService {
     const allowed = new Set<string>([...BASE_COLUMNS, ...TABLE_COLUMNS[table]]);
     const row: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(raw)) if (allowed.has(k) && v !== undefined) row[k] = v; // unknown keys dropped
+
+    const invalid = validateColumns(table, row); // vocabularies, dates, money, tooth numbers
+    if (invalid) throw new ValidationError(invalid);
 
     const ceiling = this.now().getTime() + MAX_CLOCK_SKEW_MS;
     if (Date.parse(raw.updatedAt) > ceiling) row.updatedAt = new Date(ceiling).toISOString();
