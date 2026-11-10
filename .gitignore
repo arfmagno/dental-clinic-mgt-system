@@ -1,6 +1,8 @@
 node_modules
 dist
-data
+# runtime data only (not the apps/web/src/data source folder)
+/data
+/apps/server/data
 *.db
 *.db-*
 .env
