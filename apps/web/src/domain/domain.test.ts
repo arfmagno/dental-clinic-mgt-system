@@ -1,5 +1,4 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { assert, test } from 'vitest';
 import {
   deterministicUuid,
   formatName,
@@ -7,6 +6,10 @@ import {
   legacyAddressRow,
   legacyPatientPatch,
   legacyPaymentRow,
+  legacyV3Address,
+  nationalityOf,
+  nationalityOptions,
+  OTHER_PROCEDURE,
   nameGroup,
   nameSortKey,
   paidByProcedure,
@@ -23,6 +26,7 @@ import { buildChart } from './chart.js';
 import { ageOf, formatAddress, recordedAtOf, summarize } from './format.js';
 import { groupStartPages, pageWindow, paginate } from './paging.js';
 import { matchesPatient } from './search.js';
+import { resolveProcedureType, splitProcedureType } from './procedureType.js';
 
 const base = { createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', isDeleted: false };
 let n = 0;
@@ -80,7 +84,7 @@ test('age accounts for whether the birthday has passed', () => {
 
 const patient = (extra: Partial<Patient> = {}): Patient => ({
   ...base, id: 'p', salutation: '', firstName: 'Maria', middleName: 'Clara', lastName: 'Santos',
-  birthDate: '', occupation: 'Teacher', civilStatus: '', citizenshipCode: 'PH', photo: '', remarks: '', ...extra,
+  birthDate: '', occupation: 'Teacher', civilStatus: '', citizenshipCode: 'PH', addressLine1: '', addressCountryCode: '', photo: '', remarks: '', ...extra,
 });
 const proc = (id: string, date: string, cost: number, extra: Partial<Procedure> = {}): Procedure => ({ ...base, id, patientId: 'p', type: 't', date, time: '', costCents: cost, remarks: '', ...extra });
 const pay = (procedureId: string, amountCents: number, extra: Partial<Payment> = {}): Payment => ({ ...base, id: `y${++n}`, procedureId, amountCents, paidAt: '2026-01-01T09:00', method: 'cash', remarks: '', ...extra });
@@ -128,10 +132,42 @@ test('search: every word must match name, contacts or address text (accent-insen
   assert.equal(matchesPatient(p, '', '   '), true);
 });
 
-test('address formatting skips blanks and shows the country only when not PH', () => {
-  const a = { street: '12 Mabini St', district: '', city: 'Quezon City', province: 'Metro Manila', postalCode: '1100', countryCode: 'PH' };
-  assert.equal(formatAddress(a), '12 Mabini St, Quezon City, Metro Manila 1100');
-  assert.match(formatAddress({ ...a, countryCode: 'JP' }), /Japan$/);
+test('address formatting shows the line, plus the country only when not PH', () => {
+  assert.equal(formatAddress({ addressLine1: '12 Mabini St, Quezon City', addressCountryCode: 'PH' }), '12 Mabini St, Quezon City');
+  assert.match(formatAddress({ addressLine1: '2-1 Shibuya, Tokyo', addressCountryCode: 'JP' }), /^2-1 Shibuya, Tokyo.*Japan$/);
+  assert.equal(formatAddress({ addressLine1: '', addressCountryCode: '' }), '');
+});
+
+test('citizenship is stored as a country code and shown as a nationality', () => {
+  assert.equal(nationalityOf('PH'), 'Filipino');
+  assert.equal(nationalityOf('JP'), 'Japanese');
+  assert.equal(nationalityOf('XX'), 'XX'); // unknown code from old data is still shown
+  assert.deepEqual(nationalityOptions()[0], { code: 'PH', label: 'Filipino' }); // default first
+  const rest = nationalityOptions().slice(1).map((o) => o.label);
+  assert.deepEqual(rest, [...rest].sort((a, b) => a.localeCompare(b)));
+});
+
+test('procedure type: "Other" stores the typed text; reopening a typed type selects "Other"', () => {
+  assert.equal(resolveProcedureType({ choice: 'Filling', other: 'ignored' }), 'Filling');
+  assert.equal(resolveProcedureType({ choice: OTHER_PROCEDURE, other: '  Gum treatment ' }), 'Gum treatment');
+  assert.equal(resolveProcedureType({ choice: OTHER_PROCEDURE, other: '   ' }), '');
+  assert.deepEqual(splitProcedureType('Filling'), { choice: 'Filling', other: '' });
+  assert.deepEqual(splitProcedureType('Gum treatment'), { choice: OTHER_PROCEDURE, other: 'Gum treatment' });
+  assert.deepEqual(splitProcedureType(''), { choice: '', other: '' });
+});
+
+test('legacy v2 → v3: the primary (else oldest) live address becomes one line', () => {
+  const addr = (id: string, extra: Record<string, unknown>) => ({ id, patientId: 'p', label: '', street: '', district: '', city: '', province: '', postalCode: '', countryCode: 'PH', isPrimary: false, isDeleted: false, createdAt: '2026-01-01T00:00:00Z', ...extra });
+  assert.deepEqual(
+    legacyV3Address([
+      addr('a', { street: 'Old St', createdAt: '2025-01-01T00:00:00Z' }),
+      addr('b', { street: '12 Mabini St', city: 'Quezon City', province: 'Metro Manila', postalCode: '1100', isPrimary: true }),
+      addr('c', { street: 'Deleted', isPrimary: true, isDeleted: true }),
+    ]),
+    { addressLine1: '12 Mabini St, Quezon City, Metro Manila 1100', addressCountryCode: 'PH' },
+  );
+  assert.equal(legacyV3Address([addr('x', { street: 'Old St', createdAt: '2025-01-01T00:00:00Z' }), addr('y', { street: 'New St' })]).addressLine1, 'Old St');
+  assert.deepEqual(legacyV3Address([]), { addressLine1: '', addressCountryCode: '' });
 });
 
 test('paging: pages are clamped and group start pages point to the first item of each letter', () => {
