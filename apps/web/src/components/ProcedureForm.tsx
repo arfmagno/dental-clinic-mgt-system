@@ -1,5 +1,17 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { CONDITIONS, CONDITION_LABEL, PROCEDURE_TYPES, dentitionOf, toCents, type Condition, type Dentition } from '@clinic/shared';
+import {
+  CONDITIONS,
+  CONDITION_LABEL,
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_LABEL,
+  PROCEDURE_TYPES,
+  dentitionOf,
+  toCents,
+  toothInfo,
+  type Condition,
+  type Dentition,
+  type PaymentMethod,
+} from '@clinic/shared';
 import { buildChart, type ToothState } from '../domain/chart';
 import { nowLocal } from '../domain/format';
 import { usePatientBundle } from '../hooks/useData';
@@ -11,7 +23,7 @@ interface Props {
   /** Fixed when opened from a patient's page; otherwise the user must pick one. */
   patientId?: string;
   onSaved(procedureId: string, patientId: string): void;
-  onCancel?(): void;
+  onCancel(): void;
 }
 
 interface ToothPick {
@@ -30,7 +42,8 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
   const [date, setDate] = useState(now.date);
   const [time, setTime] = useState(now.time);
   const [cost, setCost] = useState('');
-  const [paid, setPaid] = useState('');
+  const [paidNow, setPaidNow] = useState('');
+  const [method, setMethod] = useState<PaymentMethod>('cash');
   const [remarks, setRemarks] = useState('');
   const [dentition, setDentition] = useState<Dentition>('permanent');
   const [picks, setPicks] = useState<Map<number, ToothPick>>(new Map());
@@ -45,14 +58,13 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
     return m;
   }, [chart, picks]);
   const selected = useMemo(() => new Set(picks.keys()), [picks]);
-
   const isPast = date !== now.date;
 
   function toggleTooth(tooth: number) {
     setPicks((prev) => {
       const next = new Map(prev);
       if (next.has(tooth)) next.delete(tooth);
-      else next.set(tooth, { condition: defaultCondition(type) ?? 'healthy', remarks: '', touched: false });
+      else next.set(tooth, { condition: defaultCondition(type) ?? chart.get(tooth)?.condition ?? 'healthy', remarks: '', touched: false });
       return next;
     });
   }
@@ -75,9 +87,9 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
         date,
         time,
         costCents: toCents(cost),
-        paidCents: toCents(paid),
         remarks,
         teeth: [...picks].map(([tooth, p]) => ({ tooth, condition: p.condition, remarks: p.remarks })),
+        payment: toCents(paidNow) > 0 ? { amountCents: toCents(paidNow), method, remarks: '' } : null,
       });
       onSaved(id, patientId);
     } catch (err) {
@@ -114,19 +126,25 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
           </label>
         </div>
       </div>
-      <small className="muted" style={{ marginTop: -8 }}>
-        {isPast ? 'Recording a past procedure.' : 'Defaults to now.'} Change the date or time to record an earlier visit.
-        {isPast && <button type="button" className="link" onClick={() => (setDate(nowLocal().date), setTime(nowLocal().time))}> Reset to now</button>}
+      <small className="muted hint">
+        {isPast ? 'Recording a past procedure.' : 'Date and time default to now.'} Change them to record an earlier visit.
+        {isPast && <button type="button" className="link" onClick={() => { const n = nowLocal(); setDate(n.date); setTime(n.time); }}> Reset to now</button>}
       </small>
 
-      <div className="grid2">
+      <div className="grid3">
         <label className="field">
           <span>Cost (₱)</span>
           <input type="number" min="0" step="0.01" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0.00" />
         </label>
         <label className="field">
-          <span>Amount paid (₱)</span>
-          <input type="number" min="0" step="0.01" inputMode="decimal" value={paid} onChange={(e) => setPaid(e.target.value)} placeholder="0.00" />
+          <span>Amount received now (₱)</span>
+          <input type="number" min="0" step="0.01" inputMode="decimal" value={paidNow} onChange={(e) => setPaidNow(e.target.value)} placeholder="0.00" />
+        </label>
+        <label className="field">
+          <span>Payment method</span>
+          <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} disabled={!(toCents(paidNow) > 0)}>
+            {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{PAYMENT_METHOD_LABEL[m]}</option>)}
+          </select>
         </label>
       </div>
 
@@ -140,7 +158,7 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
         <div className="row wrap between">
           <div className="seg" role="group" aria-label="Dentition">
             {(['permanent', 'primary'] as const).map((d) => (
-              <button type="button" key={d} className={dentition === d ? 'on' : ''} onClick={() => setDentition(d)}>
+              <button type="button" key={d} className={dentition === d ? 'on' : ''} aria-pressed={dentition === d} onClick={() => setDentition(d)}>
                 {d === 'permanent' ? 'Adult' : 'Child'}
               </button>
             ))}
@@ -153,7 +171,7 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
           <div className="pick-list">
             {[...picks].sort(([a], [b]) => a - b).map(([tooth, p]) => (
               <div className="pick-row" key={tooth}>
-                <strong>{tooth}</strong>
+                <strong title={toothInfo(tooth)?.name}>{tooth}</strong>
                 <select
                   aria-label={`Condition of tooth ${tooth}`}
                   value={p.condition}
@@ -163,7 +181,7 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
                 </select>
                 <input
                   aria-label={`Remarks for tooth ${tooth}`}
-                  placeholder="Remarks"
+                  placeholder={`Remarks (${toothInfo(tooth)?.name ?? ''})`}
                   value={p.remarks}
                   onChange={(e) => setPicks((prev) => new Map(prev).set(tooth, { ...p, remarks: e.target.value }))}
                 />
@@ -176,9 +194,9 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
       </fieldset>
 
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="row">
-        <button className="btn primary" disabled={saving || !patientId}>{saving ? 'Saving…' : 'Save procedure'}</button>
-        {onCancel && <button type="button" className="btn" onClick={onCancel}>Cancel</button>}
+      <div className="row form-actions">
+        <button className="btn primary" disabled={saving || !patientId}>{saving ? 'Adding procedure…' : 'Add procedure'}</button>
+        <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>
       </div>
     </form>
   );
