@@ -1,5 +1,8 @@
 // Request schemas for /sync. These check the envelope only; each row is checked by domain/syncRow.ts.
-import type { PushRequest } from '@clinic/shared';
+import { SYNC_TABLES, type PushRequest } from '@clinic/shared';
+
+/** Most rows one push may carry per table (devices send 200 at a time). */
+export const PUSH_MAX_ROWS = 1000;
 
 export type PushBody = PushRequest;
 
@@ -13,7 +16,13 @@ export const pushSchema = {
     type: 'object',
     required: ['changes'],
     additionalProperties: false,
-    properties: { changes: { type: 'object' } },
+    properties: {
+      changes: {
+        type: 'object',
+        additionalProperties: false, // only the synced tables
+        properties: Object.fromEntries(SYNC_TABLES.map((t) => [t, { type: 'array', maxItems: PUSH_MAX_ROWS, items: { type: 'object' } }])),
+      },
+    },
   },
 } as const;
 

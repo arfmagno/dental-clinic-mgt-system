@@ -32,6 +32,7 @@ COPY services/desktop/package.json services/desktop/
 RUN npm ci --omit=dev --workspace @clinic/server --workspace @clinic/shared
 COPY shared/src shared/src
 COPY services/api/src services/api/src
+COPY services/api/scripts/reset-pin.ts services/api/scripts/
 COPY --from=build /app/services/web/dist services/web/dist
 
 # The database and its pre-migration backups live on a volume so they survive redeploys.

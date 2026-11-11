@@ -4,7 +4,7 @@ import { pullSchema, pushSchema, type PullQuery, type PushBody } from '../valida
 
 export const syncRoutes: FastifyPluginAsync<AppDeps> = async (app, deps) => {
   app.post<{ Body: PushBody }>('/sync/push', { config: { auth: 'sync:push' }, schema: pushSchema }, async (req) =>
-    deps.sync.push(req.body),
+    deps.sync.push(req.principal!, req.body),
   );
 
   app.get<{ Querystring: PullQuery }>('/sync/pull', { config: { auth: 'sync:pull' }, schema: pullSchema }, async (req) =>

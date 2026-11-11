@@ -3,7 +3,8 @@ import { loadConfig } from './config.js';
 import { openDriver } from './infrastructure/db/open.js';
 import { TokenSigner } from './infrastructure/auth/tokens.js';
 import { migrate } from './migrate.js';
-import { AuthService, PasswordAuthProvider } from './services/authService.js';
+import { AuthService, PasswordAuthProvider, type StaffRecord } from './services/authService.js';
+import { SyncRepository } from './repositories/syncRepository.js';
 import { SyncService } from './services/syncService.js';
 import { buildApp } from './http/app.js';
 
@@ -19,6 +20,7 @@ const auth = new AuthService({
   provider: new PasswordAuthProvider(config.clinicPassword), // swap for a user-account/OIDC provider later
   signer: new TokenSigner(config.authSecret),
   tokenTtlSeconds: config.tokenTtlDays * 86400,
+  findStaff: async (id) => (await new SyncRepository(db).get('staff', id)) as StaffRecord | undefined,
 });
 const app = await buildApp({ config, db, auth, sync: new SyncService(db) });
 

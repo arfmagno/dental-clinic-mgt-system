@@ -1,6 +1,6 @@
 {
   "name": "@clinic/server",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,8 @@
     "test": "tsx --test src/domain/domain.test.ts src/server.test.ts src/migrations.test.ts src/seed.test.ts",
     "migration:new": "tsx scripts/new-migration.ts",
     "lint:migrations": "tsx scripts/check-migrations.ts",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "reset-pin": "tsx scripts/reset-pin.ts"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
@@ -19,6 +20,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@fastify/compress": "^9.3.0",
     "@fastify/cors": "^11.4.1",
     "@fastify/static": "^10.1.10",
     "better-sqlite3": "^11.10.0",

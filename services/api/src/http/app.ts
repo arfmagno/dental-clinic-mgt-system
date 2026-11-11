@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import compress from '@fastify/compress';
 import cors from '@fastify/cors';
 import type { Config } from '../config.js';
 import type { SqlDriver } from '../infrastructure/db/driver.js';
@@ -32,6 +33,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     bodyLimit: 25 * 1024 * 1024, // compressed patient photos travel inside sync pushes
   });
 
+  // gzip/brotli for the web app and sync responses (photos travel as text inside them)
+  await app.register(compress, { threshold: 1024 });
   securityHeaders(app, { hsts: config.env === 'production' });
   if (config.corsOrigin) await app.register(cors, { origin: config.corsOrigin, methods: ['GET', 'POST'] });
   authGate(app, deps.auth);

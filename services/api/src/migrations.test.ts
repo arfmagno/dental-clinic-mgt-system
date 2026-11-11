@@ -9,16 +9,17 @@ import { migrate } from './migrate.js';
 import { checkMigrationFiles, loadMigrations, MIGRATIONS_DIR } from './migrations/index.js';
 import { migrationTemplate, newMigrationFileName, toKebab, timestampOf } from './migrations/generate.js';
 import type { Migration } from './migrations/types.js';
-import { SyncService } from './services/syncService.js';
+import { SyncService, TRUSTED } from './services/syncService.js';
 
 const iso = () => new Date().toISOString();
 const V1 = '20261110090000'; // baseline schema
+const V2 = '20261112090000'; // staff accounts and audit trail
 
 // ---------------- files, names and the generator (unit) ----------------
 test('migration files in the repo are well named, unique and load', async () => {
   assert.deepEqual(checkMigrationFiles(await readdir(MIGRATIONS_DIR)), []);
   const list = await loadMigrations();
-  assert.deepEqual(list.map((m) => m.version), [V1]);
+  assert.deepEqual(list.map((m) => m.version), [V1, V2]);
   assert.equal(list[0].name, 'initial schema');
 });
 
@@ -68,11 +69,11 @@ test('loader runs .sql and .ts files from a folder, in version order', async () 
 // ---------------- runner (integration, real SQLite) ----------------
 test('migrations apply once and are idempotent', async () => {
   const db = openDriver('sqlite::memory:');
-  assert.deepEqual(await migrate(db), [V1]);
+  assert.deepEqual(await migrate(db), [V1, V2]);
   assert.deepEqual(await migrate(db), []);
 });
 
-test('baseline schema matches the shared model: every synced column, the FDI tooth catalog, foreign keys', async () => {
+test('the schema matches the shared model: every synced column, the FDI tooth catalog, foreign keys', async () => {
   const db = openDriver('sqlite::memory:');
   await migrate(db);
   for (const table of SYNC_TABLES) {
@@ -105,7 +106,7 @@ test('a later migration can add a column and backfill it, and devices receive th
   const db = openDriver('sqlite::memory:');
   await migrate(db);
   const sync = new SyncService(db);
-  await sync.push({ changes: { patients: [{ id: 'p1', createdAt: iso(), updatedAt: iso(), isDeleted: false, firstName: 'Maria', lastName: 'Clara' }] } as any });
+  await sync.push(TRUSTED, { changes: { patients: [{ id: 'p1', createdAt: iso(), updatedAt: iso(), isDeleted: false, firstName: 'Maria', lastName: 'Clara' }] } as any });
   const before = (await sync.pull(0)).cursor;
 
   const m: Migration = {
@@ -135,5 +136,5 @@ test('a failing migration rolls back completely and is not recorded', async () =
   };
   await assert.rejects(migrate(db, { migrations: [...(await loadMigrations()), bad] }), /boom/);
   assert.equal(await db.get("SELECT name FROM sqlite_master WHERE name = 'half_done'"), undefined);
-  assert.equal((await db.all('SELECT version FROM _migrations')).length, 1);
+  assert.equal((await db.all('SELECT version FROM _migrations')).length, 2); // only the real ones
 });

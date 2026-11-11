@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { isRole, type Principal } from '../domain/authorization.js';
 import { AuthError } from '../domain/errors.js';
+import { pinMatches, type StoredPin } from '../infrastructure/auth/pin.js';
 import type { TokenSigner } from '../infrastructure/auth/tokens.js';
 
 // ---------- Authentication port ----------
@@ -17,7 +18,9 @@ export interface AuthProvider {
 
 export class PasswordAuthProvider implements AuthProvider {
   private digest: Buffer;
-  constructor(password: string, private principal: Principal = { id: 'clinic', role: 'admin' }) {
+  // The shared password identifies a clinic device, not a person: least privilege (syncs records;
+  // staff accounts need a staff sign-in on top, see AuthService.staffLogin).
+  constructor(password: string, private principal: Principal = { id: 'clinic', role: 'staff', kind: 'device' }) {
     this.digest = sha256(password);
   }
   async authenticate(credentials: Credentials) {
@@ -55,11 +58,22 @@ export class LoginThrottle {
   }
 }
 
+/** A staff account as the server has it (synced from the clinic's devices). */
+export interface StaffRecord extends StoredPin {
+  id: string;
+  role: string;
+  isDeleted: boolean;
+}
+
 export interface AuthServiceOptions {
   provider: AuthProvider;
   signer: TokenSigner;
   tokenTtlSeconds: number;
   throttle?: LoginThrottle;
+  /** Looks up a staff account for staff sign-in. */
+  findStaff?: (id: string) => Promise<StaffRecord | undefined>;
+  /** Staff sessions are short: a working day. */
+  staffTokenTtlSeconds?: number;
 }
 
 export class AuthService {
@@ -76,9 +90,31 @@ export class AuthService {
       throw new AuthError('Invalid credentials', 401); // same message regardless of cause
     }
     this.throttle.succeed(clientKey);
+    return this.issue(principal, this.o.tokenTtlSeconds);
+  }
+
+  /**
+   * A staff member signs in with their own PIN, from a device that already holds a clinic token.
+   * The PIN is checked against the hash on the server's copy of their staff row. Throttled per
+   * account and client, with the same answer for unknown accounts and wrong PINs.
+   */
+  async staffLogin(staffId: string, pin: string, clientKey: string) {
+    const key = `staff:${clientKey}:${staffId}`;
+    this.throttle.check(key);
+    const staff = await this.o.findStaff?.(staffId);
+    const ok = !!staff && !staff.isDeleted && isRole(staff.role) && (await pinMatches(pin, staff));
+    if (!ok || !staff) {
+      this.throttle.fail(key);
+      throw new AuthError('Invalid credentials', 401);
+    }
+    this.throttle.succeed(key);
+    return this.issue({ id: staff.id, role: staff.role as Principal['role'], kind: 'staff' }, this.o.staffTokenTtlSeconds ?? 12 * 3600);
+  }
+
+  private issue(principal: Principal, ttlSeconds: number) {
     const iat = Math.floor(Date.now() / 1000);
-    const exp = iat + this.o.tokenTtlSeconds;
-    return { token: this.o.signer.sign({ sub: principal.id, role: principal.role, iat, exp }), expiresAt: exp * 1000, principal };
+    const exp = iat + ttlSeconds;
+    return { token: this.o.signer.sign({ sub: principal.id, role: principal.role, kind: principal.kind, iat, exp }), expiresAt: exp * 1000, principal };
   }
 
   /** Returns the principal for a bearer token, or null when missing/invalid/expired. */
@@ -86,6 +122,6 @@ export class AuthService {
     if (!token) return null;
     const p = this.o.signer.verify(token);
     if (!p || !isRole(p.role)) return null;
-    return { id: p.sub, role: p.role };
+    return { id: p.sub, role: p.role, kind: p.kind === 'staff' ? 'staff' : 'device' };
   }
 }

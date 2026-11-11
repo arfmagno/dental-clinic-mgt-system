@@ -6,11 +6,17 @@ import {
   type PushResponse,
   type SyncTable,
 } from '@clinic/shared';
+import type { Principal } from '../domain/authorization.js';
+import { ValidationError } from '../domain/errors.js';
+import { staffWriteError } from '../domain/staffPolicy.js';
 import { acceptIncomingRow } from '../domain/syncRow.js';
 import type { SqlDriver } from '../infrastructure/db/driver.js';
 import { SyncRepository } from '../repositories/syncRepository.js';
 
 const MAX_PULL_LIMIT = 1000;
+
+/** Server-side scripts (seed, migrations, tests): no request, no person, no staff rules. */
+export const TRUSTED = 'trusted' as const;
 
 /**
  * Sync use cases: push (row rules in domain/syncRow.ts, last-write-wins in the repository upsert)
@@ -23,7 +29,12 @@ export class SyncService {
     private now: () => Date = () => new Date(),
   ) {}
 
-  async push(req: PushRequest): Promise<PushResponse> {
+  /**
+   * Extra rules on top of row validation:
+   *  - staff accounts: see domain/staffPolicy.ts (admins signed in with their own PIN)
+   *  - audit_log: append-only; an entry that already exists is never overwritten
+   */
+  async push(principal: Principal | typeof TRUSTED, req: PushRequest): Promise<PushResponse> {
     const res: PushResponse = { accepted: {}, stale: {}, rejected: [] };
     // Parents before children so foreign keys hold within a single push.
     for (const table of SYNC_TABLES) {
@@ -34,6 +45,17 @@ export class SyncService {
           const row = acceptIncomingRow(table, raw, this.now());
           const applied = await this.db.transaction(async (tx) => {
             const repo = new SyncRepository(tx);
+            if (table === 'audit_log' && (await repo.get(table, row.id))) return false;
+            if (table === 'staff' && principal !== TRUSTED) {
+              const error = staffWriteError({
+                principal,
+                actor: principal.kind === 'staff' ? await repo.get('staff', principal.id) : undefined,
+                incoming: row,
+                existing: await repo.get('staff', row.id),
+                bootstrap: (await repo.countSignInStaff()) === 0,
+              });
+              if (error) throw new ValidationError(error);
+            }
             return repo.upsertIfNewer(table, row, await repo.nextSeq());
           });
           (applied ? (res.accepted[table] ??= []) : (res.stale[table] ??= [])).push(row.id);

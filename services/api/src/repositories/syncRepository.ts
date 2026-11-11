@@ -48,6 +48,19 @@ export class SyncRepository {
     });
   }
 
+  async get(table: SyncTable, id: string): Promise<AnyRow | undefined> {
+    const r = await this.db.get<Record<string, unknown>>(`SELECT * FROM ${table} WHERE id = ?`, [id]);
+    if (!r) return undefined;
+    delete r.serverSeq;
+    for (const c of BOOLEAN_COLUMNS) if (c in r) r[c] = Boolean(r[c]);
+    return r as AnyRow;
+  }
+
+  /** Accounts someone can sign in to (active, with a PIN). */
+  async countSignInStaff(): Promise<number> {
+    return (await this.db.get<{ n: number }>("SELECT COUNT(*) AS n FROM staff WHERE isDeleted = 0 AND pinHash != ''"))?.n ?? 0;
+  }
+
   async ping(): Promise<boolean> {
     return (await this.db.get('SELECT 1 AS ok')) !== undefined;
   }

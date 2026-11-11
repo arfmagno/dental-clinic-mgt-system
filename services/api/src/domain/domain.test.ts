@@ -21,9 +21,9 @@ const procedure = (extra: Record<string, unknown> = {}) => ({
 });
 
 test('authorization: staff and admin can sync, patients cannot', () => {
-  assert.equal(can({ id: 'a', role: 'admin' }, 'sync:push'), true);
-  assert.equal(can({ id: 's', role: 'staff' }, 'sync:pull'), true);
-  assert.equal(can({ id: 'p', role: 'patient' }, 'sync:pull'), false);
+  assert.equal(can({ id: 'a', role: 'admin', kind: 'staff' }, 'sync:push'), true);
+  assert.equal(can({ id: 's', role: 'staff', kind: 'device' }, 'sync:pull'), true);
+  assert.equal(can({ id: 'p', role: 'patient', kind: 'staff' }, 'sync:pull'), false);
 });
 
 test('authorization: isRole only accepts known roles', () => {

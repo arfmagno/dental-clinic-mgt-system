@@ -5,6 +5,7 @@ export interface TokenPayload {
   role: string;
   iat: number; // seconds
   exp: number; // seconds
+  kind?: 'device' | 'staff'; // absent in tokens issued before staff sign-in existed: a device
 }
 
 /** Compact signed bearer token (HMAC-SHA256). Swap for JWT/OIDC validation behind AuthProvider later. */

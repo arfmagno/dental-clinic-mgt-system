@@ -12,10 +12,17 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   patient: [],
 };
 
-/** Who is making a request, once authenticated. */
+/**
+ * Who is making a request, once authenticated.
+ *  device – proved it belongs to the clinic (the shared server password); syncs records
+ *  staff   – a staff member signed in with their own PIN on top of that (id = staff row id)
+ */
+export type PrincipalKind = 'device' | 'staff';
+
 export interface Principal {
   id: string;
   role: Role;
+  kind: PrincipalKind;
 }
 
 export const isRole = (v: unknown): v is Role => typeof v === 'string' && Object.hasOwn(ROLE_PERMISSIONS, v);
