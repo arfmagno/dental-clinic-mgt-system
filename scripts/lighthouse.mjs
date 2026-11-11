@@ -2,7 +2,7 @@
 // Builds nothing: run `npm run build` first. Uses Chrome, or Edge/Chromium via CHROME_PATH.
 // Writes lighthouse/report.report.html (+ .json) and fails if a score drops below its floor.
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,6 +45,7 @@ async function waitForServer() {
 let failed = false;
 try {
   await waitForServer();
+  mkdirSync(path.join(root, 'lighthouse'), { recursive: true }); // Lighthouse does not create its output folder
   const res = spawnSync(
     'npx',
     ['-y', 'lighthouse@12', URL, '--quiet', '--chrome-flags=--headless=new', '--output=json', '--output=html', '--output-path=lighthouse/report', '--only-categories=performance,accessibility,best-practices,seo'],
