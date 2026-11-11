@@ -1,9 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fold } from '@clinic/shared';
 import { formatDate, formatMoney, formatTime } from '../domain/format';
 import { Icon } from '../components/Icon';
+import { PageRange, Pager } from '../components/Pager';
+import { paginate } from '../domain/paging';
 import { useAllProcedures, type ProcedureRow } from '../hooks/useData';
+
+export const RECORDS_PAGE_SIZE = 25;
 
 type SortKey = 'date' | 'patient' | 'type' | 'cost' | 'paid' | 'balance';
 
@@ -32,6 +36,8 @@ export function Records() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'date', dir: -1 });
   const [filter, setFilter] = useState('');
   const [onlyOwing, setOnlyOwing] = useState(false);
+  const [pageNo, setPageNo] = useState(1);
+  const top = useRef<HTMLDivElement>(null);
 
   const shown = useMemo(() => {
     const f = fold(filter.trim());
@@ -45,10 +51,11 @@ export function Records() {
     });
   }, [rows, filter, onlyOwing, sort]);
 
-  const outstanding = (rows ?? []).reduce((s, r) => s + Math.max(0, balanceOf(r)), 0);
-  const owingPatients = new Set((rows ?? []).filter((r) => balanceOf(r) > 0).map((r) => r.procedure.patientId)).size;
+  const page = paginate(shown, RECORDS_PAGE_SIZE, pageNo);
+  const goTo = (n: number) => (setPageNo(n), top.current?.scrollIntoView({ block: 'start' }));
+
   const totals = shown.reduce((t, r) => ({ cost: t.cost + r.procedure.costCents, paid: t.paid + r.paidCents }), { cost: 0, paid: 0 });
-  const toggle = (key: SortKey) => setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: key === 'date' ? -1 : 1 }));
+  const toggle = (key: SortKey) => (setPageNo(1), setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: key === 'date' ? -1 : 1 })));
 
   return (
     <div className="stack">
@@ -56,22 +63,19 @@ export function Records() {
         <h1>Records</h1>
         <Link to="/records/new" className="btn primary"><Icon name="plus" size={18} /> Add Record</Link>
       </div>
-      <div className="card stat">
-        <small className="muted">Outstanding balance</small>
-        <strong className={outstanding > 0 ? 'owed' : ''}>{rows ? formatMoney(outstanding) : '–'}</strong>
-        {rows && <small className="muted">{owingPatients} patient{owingPatients === 1 ? '' : 's'} with a balance · <Link to="/transactions">Settle</Link></small>}
-      </div>
-      <div className="row wrap">
+      <div className="row wrap" ref={top}>
         <label className="search-box grow">
           <Icon name="search" size={18} />
-          <input type="search" className="search" placeholder="Search by patient, procedure, remarks…" aria-label="Search records" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input type="search" className="search" placeholder="Search by patient, procedure, remarks…" aria-label="Search records" value={filter} onChange={(e) => (setFilter(e.target.value), setPageNo(1))} />
         </label>
-        <label className="switch"><input type="checkbox" checked={onlyOwing} onChange={(e) => setOnlyOwing(e.target.checked)} /><span>Unpaid</span></label>
+        <label className="switch"><input type="checkbox" checked={onlyOwing} onChange={(e) => (setOnlyOwing(e.target.checked), setPageNo(1))} /><span>Unpaid</span></label>
       </div>
 
       {rows === undefined ? (
         <p className="muted">Loading…</p>
       ) : (
+        <>
+        <PageRange page={page} pageSize={RECORDS_PAGE_SIZE} noun={['record', 'records']} />
         <div className="card table-wrap">
           <table className="table rtable">
             <thead>
@@ -89,7 +93,7 @@ export function Records() {
               {shown.length === 0 && (
                 <tr><td colSpan={6} className="muted pad">No records found.</td></tr>
               )}
-              {shown.map((r) => {
+              {page.items.map((r) => {
                 const p = r.procedure;
                 const bal = balanceOf(r);
                 return (
@@ -116,6 +120,8 @@ export function Records() {
             )}
           </table>
         </div>
+        <Pager page={page} onPage={goTo} label="Record pages" />
+        </>
       )}
     </div>
   );

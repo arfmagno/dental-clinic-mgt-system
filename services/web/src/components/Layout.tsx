@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Icon, type IconName } from './Icon';
+import { useFeature } from '../services/features';
 import { SyncChip } from './SyncChip';
-import { ThemeToggle } from './ThemeToggle';
 
 interface NavItem {
   to: string;
@@ -19,20 +19,24 @@ export const NAV: NavItem[] = [
   { to: '/records', label: 'Records', icon: 'list', end: true },
   { to: '/transactions', label: 'Transactions', icon: 'wallet' },
 ];
+const REPORTS: NavItem = { to: '/reports', label: 'Reports', icon: 'activity' };
 const byPath = (to: string) => NAV.find((n) => n.to === to)!;
 const TABS_LEFT = [byPath('/'), byPath('/patients')];
 const TABS_RIGHT = [byPath('/records'), byPath('/transactions')];
 const ADD = [byPath('/patients/new'), byPath('/records/new')];
+// The top bar lists places only; adding is done from the dashboard tiles and the pages themselves.
+const TOP_NAV = NAV.filter((n) => !ADD.includes(n));
 
 const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? 'active' : '');
 
 /**
- * Large screens: a top bar with every destination. Phones: a compact top bar plus a bottom tab bar
+ * Large screens: a top bar with every destination (no Add links; those are on the dashboard). Phones: a compact top bar plus a bottom tab bar
  * (Home, Patients, Add, Records, Transactions); "Add" opens a sheet with Add Patient / Add Record.
  */
 export function Layout() {
   // The add sheet belongs to the page it was opened on, so any navigation closes it.
   const { pathname } = useLocation();
+  const reports = useFeature('reports');
   const [addOpenOn, setAddOpenOn] = useState<string | null>(null);
   const addOpen = addOpenOn === pathname;
   const setAddOpen = (open: boolean) => setAddOpenOn(open ? pathname : null);
@@ -40,12 +44,12 @@ export function Layout() {
   return (
     <div className="app">
       <header className="topbar">
-        <Link to="/" className="brand">
+        <Link to="/" className="brand" aria-label="Magno Dental Clinic, home">
           <span className="brand-mark" aria-hidden>🦷</span>
           <span className="brand-name">Magno Dental Clinic</span>
         </Link>
         <nav className="topnav" aria-label="Main">
-          {NAV.map((l) => (
+          {(reports ? [...TOP_NAV, REPORTS] : TOP_NAV).map((l) => (
             <NavLink key={l.to} to={l.to} end={l.end} className={navClass}>
               {l.label}
             </NavLink>
@@ -53,12 +57,16 @@ export function Layout() {
         </nav>
         <div className="topbar-tools">
           <SyncChip />
-          <ThemeToggle />
+          <NavLink to="/settings" className={({ isActive }) => `btn ghost icon${isActive ? ' active' : ''}`} aria-label="Settings" title="Settings">
+            <Icon name="settings" />
+          </NavLink>
         </div>
       </header>
 
       <main className="page">
-        <Outlet />
+        <Suspense fallback={<p className="muted">Loading…</p>}>
+          <Outlet />
+        </Suspense>
       </main>
 
       <nav className="tabbar" aria-label="Tabs">

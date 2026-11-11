@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { CONDITION_LABEL, DENTAL_CLASSIFICATION_LABEL, PAYMENT_METHOD_LABEL, nationalityOf, toCents, toothInfo, type Payment, type Procedure } from '@clinic/shared';
+import { CONDITION_LABEL, DENTAL_CLASSIFICATION_LABEL, PAYMENT_METHOD_LABEL, nationalityOf, TEXT_LIMITS, toCents, toothInfo, type DentalRecord, type Payment, type Procedure } from '@clinic/shared';
+import { ChartUpdateForm } from '../components/ChartUpdateForm';
 import { DentalChart } from '../components/DentalChart';
 import { useFeedback } from '../components/Feedback';
 import { Icon } from '../components/Icon';
@@ -11,15 +12,16 @@ import { PaymentForm } from '../components/PaymentForm';
 import { ProcedureForm } from '../components/ProcedureForm';
 import { ProcedureTypeField } from '../components/ProcedureTypeField';
 import { resolveProcedureType, splitProcedureType } from '../domain/procedureType';
-import { buildChart, type ToothState } from '../domain/chart';
+import { buildChart, sortRecordsAsc, type ToothState } from '../domain/chart';
 import { classificationOf } from '../domain/classification';
 import { ageOf, formalName, formatAddress, formatDate, formatMoney, formatTime } from '../domain/format';
 import { usePatientBundle } from '../hooks/useData';
+import { useLock } from '../hooks/useLock';
 import { deletePatient, savePatient, type ContactInput, type PatientFields } from '../services/patientService';
-import { deletePayment, deleteProcedure, updateProcedure } from '../services/procedureService';
+import { deleteChartUpdate, deletePayment, deleteProcedure, updateProcedure } from '../services/procedureService';
 
 type ModalState =
-  | { kind: 'edit' | 'record' }
+  | { kind: 'edit' | 'record' | 'chart' }
   | { kind: 'payment'; procedure: Procedure; balanceCents: number }
   | { kind: 'editRecord'; procedure: Procedure }
   | null;
@@ -28,6 +30,7 @@ export function PatientDetail() {
   const { id } = useParams();
   const nav = useNavigate();
   const { notify, confirm } = useFeedback();
+  const { isAdmin } = useLock();
   const bundle = usePatientBundle(id);
   const [modal, setModal] = useState<ModalState>(null);
   const [asOf, setAsOf] = useState<string | undefined>();
@@ -54,6 +57,9 @@ export function PatientDetail() {
   const teethOf = (procedureId: string) => entries.filter((e) => e.procedureId === procedureId).sort((a, b) => a.tooth - b.tooth);
   const paymentsOf = (procedureId: string) => payments.filter((y) => y.procedureId === procedureId);
   const recordOf = (procedureId: string) => records.find((r) => r.procedureId === procedureId);
+  const chartUpdates = sortRecordsAsc(records.filter((r) => !r.procedureId)).toReversed(); // newest first
+  const teethOfRecord = (recordId: string) => entries.filter((e) => e.recordId === recordId).sort((a, b) => a.tooth - b.tooth);
+  const currentChart = buildChart(records, entries);
   const close = () => setModal(null);
 
   const toFields = (): PatientFields => {
@@ -101,6 +107,19 @@ export function PatientDetail() {
     notify('Record deleted');
   }
 
+  async function removeChartUpdate(r: DentalRecord) {
+    const ok = await confirm({
+      title: 'Delete this chart update?',
+      message: <>The chart changes of {formatDate(r.recordedAt)} will be removed from the chart.</>,
+      confirmLabel: 'Delete chart update',
+      danger: true,
+    });
+    if (!ok) return;
+    await deleteChartUpdate(r.id);
+    if (asOf === r.id) setAsOf(undefined);
+    notify('Chart update deleted');
+  }
+
   async function removePayment(y: Payment) {
     const ok = await confirm({
       title: 'Remove payment?',
@@ -129,7 +148,7 @@ export function PatientDetail() {
           <button className="btn primary" onClick={() => setModal({ kind: 'record' })}><Icon name="plus" size={18} /> Add Record</button>
           <button className="btn" onClick={() => setModal({ kind: 'edit' })}><Icon name="edit" size={18} /> Edit</button>
           <button className="btn" onClick={exportPdf} disabled={exporting}><Icon name="download" size={18} /> {exporting ? 'Exporting…' : 'Export'}</button>
-          <button className="btn danger" onClick={removePatient}><Icon name="trash" size={18} /> Delete</button>
+          {isAdmin && <button className="btn danger" onClick={removePatient}><Icon name="trash" size={18} /> Delete</button>}
         </div>
         <dl className="facts">
           <div><dt>Date of birth</dt><dd>{patient.birthDate ? formatDate(patient.birthDate) : '—'}</dd></div>
@@ -175,7 +194,10 @@ export function PatientDetail() {
               {asOf && <> · as of {formatDate(records.find((r) => r.id === asOf)?.recordedAt ?? '')}</>}
             </p>
           </div>
-          {asOf && <button className="btn sm" onClick={() => setAsOf(undefined)}>Current</button>}
+          <div className="actions">
+            {asOf && <button className="btn sm" onClick={() => setAsOf(undefined)}>Current</button>}
+            <button className="btn sm primary" onClick={() => setModal({ kind: 'chart' })}><Icon name="edit" size={16} /> Update chart</button>
+          </div>
         </div>
         <DentalChart classification={classification.value} chart={chart} />
         <ConditionLegend />
@@ -188,6 +210,25 @@ export function PatientDetail() {
               </li>
             ))}
           </ul>
+        )}
+        {chartUpdates.length > 0 && (
+          <div className="chart-updates">
+            <h3 className="label">Chart updates (no procedure)</h3>
+            <ul>
+              {chartUpdates.map((r) => (
+                <li key={r.id} className={asOf === r.id ? 'selected' : ''}>
+                  <div className="grow">
+                    <div>{formatDate(r.recordedAt)} <span className="muted">{formatTime(r.recordedAt.slice(11))}</span>{r.remarks && <span className="muted"> · {r.remarks}</span>}</div>
+                    <div className="chips">
+                      {teethOfRecord(r.id).map((t) => <span className="chip static" key={t.id} title={[toothInfo(t.tooth)?.name, t.remarks].filter(Boolean).join(' — ')}>{t.tooth} · {CONDITION_LABEL[t.condition]}</span>)}
+                    </div>
+                  </div>
+                  <button className="btn ghost icon sm" title="View chart at this point" aria-label={`View chart as of ${formatDate(r.recordedAt)}`} onClick={() => setAsOf(r.id)}><Icon name="eye" size={17} /></button>
+                  <button className="btn ghost icon sm danger-text" title="Delete chart update" aria-label={`Delete chart update of ${formatDate(r.recordedAt)}`} onClick={() => void removeChartUpdate(r)}><Icon name="trash" size={17} /></button>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </section>
 
@@ -273,6 +314,11 @@ export function PatientDetail() {
           <ProcedureForm patientId={patient.id} onSaved={() => (close(), setAsOf(undefined), notify('Record added'))} onCancel={close} />
         </Modal>
       )}
+      {modal?.kind === 'chart' && (
+        <Modal title={`Update chart · ${name}`} onClose={close} wide>
+          <ChartUpdateForm patientId={patient.id} classification={classification.value} chart={currentChart} onSaved={() => (close(), setAsOf(undefined), notify('Chart updated'))} onCancel={close} />
+        </Modal>
+      )}
       {modal?.kind === 'payment' && (
         <Modal title={`Record payment · ${modal.procedure.type}`} onClose={close}>
           <PaymentForm procedureId={modal.procedure.id} balanceCents={modal.balanceCents} onDone={(saved) => (close(), saved && notify('Payment recorded'))} />
@@ -317,8 +363,8 @@ function EditProcedure({ procedure: p, onDone }: { procedure: Procedure; onDone(
         <label className="field"><span>Time</span><input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>
       </div>
       <label className="field"><span>Cost (₱)</span><input type="number" min="0" step="0.01" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} /></label>
-      <label className="field"><span>Remarks</span><textarea rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} /></label>
-      <small className="muted">Payments are recorded separately. Teeth recorded with this record can't be edited here; delete and re-add the record to change them.</small>
+      <label className="field"><span>Remarks</span><textarea rows={2} maxLength={TEXT_LIMITS.remarks} value={remarks} onChange={(e) => setRemarks(e.target.value)} /></label>
+      <small className="muted">Payments are recorded separately. Teeth recorded with this record can't be edited here; use <strong>Update chart</strong> on the dental chart to change them.</small>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">
         <button className="btn primary" disabled={saving}>{saving ? 'Saving…' : 'Save record'}</button>

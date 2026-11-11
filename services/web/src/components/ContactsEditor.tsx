@@ -1,5 +1,5 @@
 import { useId, useMemo } from 'react';
-import { CONTACT_TYPES, DEFAULT_COUNTRY, DIAL_CODES, flagOf, formatPhone, parsePhone, type ContactType } from '@clinic/shared';
+import { CONTACT_TYPES, DEFAULT_COUNTRY, DIAL_CODES, flagOf, formatPhone, parsePhone, TEXT_LIMITS, type ContactType } from '@clinic/shared';
 import { Icon } from './Icon';
 import { emptyContact, withSinglePrimary, type ContactInput } from '../services/patientService';
 
@@ -34,13 +34,14 @@ export function ContactsEditor({ value, onChange }: Props) {
           ) : (
             <input
               aria-label="Contact detail"
+              maxLength={TEXT_LIMITS.contact}
               type={c.type === 'email' ? 'email' : 'text'}
               placeholder={PLACEHOLDER[c.type]}
               value={c.value}
               onChange={(e) => set(i, { value: e.target.value })}
             />
           )}
-          <input aria-label="Contact label" className="label-input" placeholder="Label (e.g. Mother)" value={c.label} onChange={(e) => set(i, { label: e.target.value })} />
+          <input aria-label="Contact label" maxLength={TEXT_LIMITS.label} className="label-input" placeholder="Label (e.g. Mother)" value={c.label} onChange={(e) => set(i, { label: e.target.value })} />
           <label className="primary-pick" title="Primary contact">
             <input type="radio" name={`${group}-primary`} checked={c.isPrimary} onChange={() => makePrimary(i)} />
             <span>Primary</span>

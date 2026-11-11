@@ -64,6 +64,7 @@ export function PatientPicker({ value, onChange, autoFocus }: Props) {
         role="combobox"
         aria-expanded={open}
         aria-controls={listId}
+        aria-activedescendant={open && results[active] ? `${listId}-${active}` : undefined}
         aria-autocomplete="list"
         aria-label="Search patient"
         aria-required
@@ -96,10 +97,19 @@ export function PatientPicker({ value, onChange, autoFocus }: Props) {
             <li className="muted pad">No matching patient</li>
           ) : (
             results.map((s, i) => (
-              <li key={s.patient.id} role="option" aria-selected={i === active}>
-                <button type="button" className={i === active ? 'active' : ''} onMouseEnter={() => setActive(i)} onClick={() => pick(s.patient.id)}>
-                  {s.name}
-                </button>
+              // Options are not focusable themselves (the input keeps focus, as in the ARIA combobox
+              // pattern); mousedown is cancelled so picking does not blur the input first.
+              <li
+                key={s.patient.id}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={i === active}
+                className={`picker-option${i === active ? ' active' : ''}`}
+                onMouseEnter={() => setActive(i)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(s.patient.id)}
+              >
+                {s.name}
               </li>
             ))
           )}

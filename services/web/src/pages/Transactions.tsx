@@ -5,11 +5,16 @@ import { useFeedback } from '../components/Feedback';
 import { Icon, type IconName } from '../components/Icon';
 import { Modal } from '../components/Modal';
 import { PatientPicker } from '../components/PatientPicker';
+import { PageRange, Pager } from '../components/Pager';
 import { PaymentForm } from '../components/PaymentForm';
 import { contactLink } from '../domain/contact';
+import { paginate } from '../domain/paging';
 import { formalName, formatDate, formatMoney, formatTime, nowLocal } from '../domain/format';
-import { usePatientBundle } from '../hooks/useData';
+import { usePatientBundle, usePatientSummaries } from '../hooks/useData';
 import { settleProcedures } from '../services/procedureService';
+
+export const OWING_PAGE_SIZE = 20;
+export const TXN_PAGE_SIZE = 10;
 
 interface Unsettled {
   procedure: Procedure;
@@ -25,14 +30,19 @@ interface Unsettled {
 export function Transactions() {
   const [params, setParams] = useSearchParams();
   const patientId = params.get('patientId') ?? '';
+  const owingView = params.get('view') === 'owing'; // from the dashboard's Settle Balances
   const bundle = usePatientBundle(patientId || undefined);
   const { notify } = useFeedback();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [single, setSingle] = useState<Unsettled | null>(null);
   const [bulk, setBulk] = useState(false);
+  const [unsettledPage, setUnsettledPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
 
   const choose = (id: string) => {
     setSelected(new Set());
+    setUnsettledPage(1);
+    setHistoryPage(1);
     setParams(id ? { patientId: id } : {}, { replace: true });
   };
 
@@ -59,6 +69,8 @@ export function Transactions() {
   const outstanding = unsettled.reduce((s, u) => s + u.balanceCents, 0);
   const pickedTotal = picked.reduce((s, u) => s + u.balanceCents, 0);
   const allPicked = unsettled.length > 0 && picked.length === unsettled.length;
+  const unsettledShown = paginate(unsettled, TXN_PAGE_SIZE, unsettledPage);
+  const historyShown = paginate(history, TXN_PAGE_SIZE, historyPage);
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -71,14 +83,15 @@ export function Transactions() {
   return (
     <div className="stack narrow">
       <h1>Transactions</h1>
+      {!patientId && <OutstandingBalance />}
 
       <div className="card stack tight">
         <span className="field-label">Patient</span>
-        <PatientPicker value={patientId} onChange={choose} autoFocus={!patientId} />
+        <PatientPicker value={patientId} onChange={choose} autoFocus={!patientId && !owingView} />
       </div>
 
       {!patientId ? (
-        <p className="muted center-text pad">Choose a patient to see their unsettled records.</p>
+        <OwingPatients onPick={choose} />
       ) : bundle === undefined ? (
         <p className="muted">Loading…</p>
       ) : bundle === null ? (
@@ -103,15 +116,16 @@ export function Transactions() {
               {unsettled.length > 1 && (
                 <label className="switch small">
                   <input type="checkbox" checked={allPicked} onChange={() => setSelected(allPicked ? new Set() : new Set(live))} />
-                  <span>Select all</span>
+                  <span>Select all{unsettled.length > TXN_PAGE_SIZE && ` (${unsettled.length})`}</span>
                 </label>
               )}
             </div>
             {unsettled.length === 0 ? (
               <p className="card muted center-text">All settled. Nothing to collect.</p>
             ) : (
+              <>
               <ul className="txn-list">
-                {unsettled.map((u) => {
+                {unsettledShown.items.map((u) => {
                   const p = u.procedure;
                   const on = selected.has(p.id);
                   return (
@@ -132,6 +146,8 @@ export function Transactions() {
                   );
                 })}
               </ul>
+              <Pager page={unsettledShown} onPage={setUnsettledPage} label="Unsettled pages" />
+              </>
             )}
           </section>
 
@@ -140,8 +156,9 @@ export function Transactions() {
             {history.length === 0 ? (
               <p className="card muted">No payments yet.</p>
             ) : (
+              <>
               <ul className="card pay-list">
-                {history.map(({ payment: y, type }) => (
+                {historyShown.items.map(({ payment: y, type }) => (
                   <li key={y.id}>
                     <div className="grow">
                       <div>{type}</div>
@@ -151,6 +168,8 @@ export function Transactions() {
                   </li>
                 ))}
               </ul>
+              <Pager page={historyShown} onPage={setHistoryPage} label="Payment history pages" />
+              </>
             )}
           </section>
 
@@ -277,5 +296,53 @@ function BulkSettleForm({ items, onDone }: { items: Unsettled[]; onDone(result: 
         <button type="button" className="btn" onClick={() => onDone(null)} disabled={saving}>Cancel</button>
       </div>
     </form>
+  );
+}
+
+/** The clinic's total unpaid balance, across every patient (moved here from Records). */
+function OutstandingBalance() {
+  const summaries = usePatientSummaries();
+  const owing = summaries?.filter((s) => s.balanceCents > 0) ?? [];
+  const total = owing.reduce((s, p) => s + p.balanceCents, 0);
+  return (
+    <div className="card stat">
+      <small className="muted">Outstanding balance</small>
+      <strong className={total > 0 ? 'owed' : ''}>{summaries ? formatMoney(total) : '–'}</strong>
+      {summaries && <small className="muted">{owing.length} patient{owing.length === 1 ? '' : 's'} with a balance</small>}
+    </div>
+  );
+}
+
+/** Before a patient is picked: everyone with an outstanding balance, largest first. */
+function OwingPatients({ onPick }: { onPick(id: string): void }) {
+  const [pageNo, setPageNo] = useState(1);
+  const owing = usePatientSummaries()
+    ?.filter((s) => s.balanceCents > 0)
+    .sort((a, b) => b.balanceCents - a.balanceCents);
+  if (owing === undefined) return <p className="muted">Loading…</p>;
+  const page = paginate(owing, OWING_PAGE_SIZE, pageNo);
+  return (
+    <section className="stack tight" aria-labelledby="owing-title">
+      <h2 id="owing-title" className="section-title">Patients with a balance</h2>
+      {owing.length === 0 ? (
+        <p className="card muted center-text">No outstanding balances. Choose a patient above to see their payments.</p>
+      ) : (
+        <>
+        <PageRange page={page} pageSize={OWING_PAGE_SIZE} noun={['patient', 'patients']} />
+        <ul className="card owing-list">
+          {page.items.map((s) => (
+            <li key={s.patient.id}>
+              <button type="button" onClick={() => onPick(s.patient.id)}>
+                <span className="grow strong">{s.name}</span>
+                <span className="owed strong">{formatMoney(s.balanceCents)}</span>
+                <span className="btn sm" aria-hidden>Settle</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <Pager page={page} onPage={setPageNo} label="Patient pages" />
+        </>
+      )}
+    </section>
   );
 }

@@ -106,7 +106,7 @@ describe('PatientPicker', () => {
     await user.type(input, 'penaflor');
     const option = await screen.findByRole('option', { name: /Peñaflor/ });
     expect(screen.queryByRole('option', { name: /Santos/ })).toBeNull();
-    await user.click(within(option).getByRole('button'));
+    await user.click(option);
     expect(onChange).toHaveBeenCalledOnce();
     expect(screen.queryByRole('option')).toBeNull();
   });

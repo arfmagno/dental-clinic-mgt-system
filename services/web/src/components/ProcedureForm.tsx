@@ -1,15 +1,13 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import {
-  CONDITIONS,
-  CONDITION_LABEL,
   PAYMENT_METHODS_OFFERED,
   PAYMENT_METHOD_LABEL,
   PROCEDURE_TYPES,
   OTHER_PROCEDURE,
   toCents,
-  toothInfo,
   type Condition,
   type PaymentMethod,
+  TEXT_LIMITS,
 } from '@clinic/shared';
 import { buildChart, type ToothState } from '../domain/chart';
 import { classificationOf } from '../domain/classification';
@@ -18,22 +16,14 @@ import { resolveProcedureType, type ProcedureTypeInput } from '../domain/procedu
 import { ProcedureTypeField } from './ProcedureTypeField';
 import { usePatientBundle } from '../hooks/useData';
 import { createProcedure } from '../services/procedureService';
-import { DentalChart } from './DentalChart';
-import { Icon } from './Icon';
-import { ConditionLegend } from './Odontogram';
 import { PatientPicker } from './PatientPicker';
+import { TeethPicker, type ToothPick } from './TeethPicker';
 
 interface Props {
   /** Fixed when opened from a patient's page; otherwise the user must pick one. */
   patientId?: string;
   onSaved(procedureId: string, patientId: string): void;
   onCancel(): void;
-}
-
-interface ToothPick {
-  condition: Condition;
-  remarks: string;
-  touched: boolean; // user changed the condition by hand, so a later type change won't overwrite it
 }
 
 const defaultCondition = (type: string): Condition | undefined => PROCEDURE_TYPES.find((t) => t.name === type)?.condition;
@@ -55,24 +45,8 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
   const [error, setError] = useState('');
 
   const chart = useMemo(() => (bundle ? buildChart(bundle.records, bundle.entries) : new Map<number, ToothState>()), [bundle]);
-  // Show pending selections on the chart as their new condition.
-  const display = useMemo(() => {
-    const m = new Map<number, Pick<ToothState, 'condition'>>(chart);
-    for (const [t, p] of picks) m.set(t, { condition: p.condition });
-    return m;
-  }, [chart, picks]);
-  const selected = useMemo(() => new Set(picks.keys()), [picks]);
   const isPast = date !== now.date;
   const classification = bundle ? classificationOf(bundle.patient).value : null;
-
-  function toggleTooth(tooth: number) {
-    setPicks((prev) => {
-      const next = new Map(prev);
-      if (next.has(tooth)) next.delete(tooth);
-      else next.set(tooth, { condition: defaultCondition(type) ?? chart.get(tooth)?.condition ?? 'healthy', remarks: '', touched: false });
-      return next;
-    });
-  }
 
   function changeType(v: ProcedureTypeInput) {
     setTypeInput(v);
@@ -150,41 +124,21 @@ export function ProcedureForm({ patientId: fixedPatientId, onSaved, onCancel }: 
 
       <label className="field">
         <span>Remarks</span>
-        <textarea rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+        <textarea rows={2} maxLength={TEXT_LIMITS.remarks} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
       </label>
 
       <fieldset className="field teeth-field">
         <legend>Teeth affected <small className="muted">(tap teeth on the chart; optional)</small></legend>
         {classification ? (
-          <>
-            <DentalChart classification={classification} chart={display} selected={selected} onToothClick={toggleTooth} />
-            <ConditionLegend />
-          </>
+          <TeethPicker
+            classification={classification}
+            chart={chart}
+            picks={picks}
+            onChange={setPicks}
+            initialCondition={(tooth) => defaultCondition(type) ?? chart.get(tooth)?.condition ?? 'healthy'}
+          />
         ) : (
           <small className="muted">Pick a patient to see their chart.</small>
-        )}
-        {picks.size > 0 && (
-          <div className="pick-list">
-            {[...picks].sort(([a], [b]) => a - b).map(([tooth, p]) => (
-              <div className="pick-row" key={tooth}>
-                <strong title={toothInfo(tooth)?.name}>{tooth}</strong>
-                <select
-                  aria-label={`Condition of tooth ${tooth}`}
-                  value={p.condition}
-                  onChange={(e) => setPicks((prev) => new Map(prev).set(tooth, { ...p, condition: e.target.value as Condition, touched: true }))}
-                >
-                  {CONDITIONS.map((c) => <option key={c} value={c}>{CONDITION_LABEL[c]}</option>)}
-                </select>
-                <input
-                  aria-label={`Remarks for tooth ${tooth}`}
-                  placeholder={`Remarks (${toothInfo(tooth)?.name ?? ''})`}
-                  value={p.remarks}
-                  onChange={(e) => setPicks((prev) => new Map(prev).set(tooth, { ...p, remarks: e.target.value }))}
-                />
-                <button type="button" className="btn ghost icon" aria-label={`Remove tooth ${tooth}`} onClick={() => toggleTooth(tooth)}><Icon name="x" /></button>
-              </div>
-            ))}
-          </div>
         )}
       </fieldset>
 

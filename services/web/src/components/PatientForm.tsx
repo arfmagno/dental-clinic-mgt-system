@@ -5,6 +5,7 @@ import {
   DENTAL_CLASSIFICATION_LABEL,
   SALUTATIONS,
   suggestDentalClassification,
+  TEXT_LIMITS,
   type DentalClassification,
 } from '@clinic/shared';
 import { ageOf, nowLocal } from '../domain/format';
@@ -63,15 +64,15 @@ export function PatientForm({ initial, initialContacts, submitLabel, savingLabel
         </label>
         <label className="field">
           <span>First name *</span>
-          <input required autoComplete="given-name" value={f.firstName} onChange={(e) => set('firstName', e.target.value)} />
+          <input required maxLength={TEXT_LIMITS.name} autoComplete="given-name" value={f.firstName} onChange={(e) => set('firstName', e.target.value)} />
         </label>
         <label className="field">
           <span>Middle name</span>
-          <input autoComplete="additional-name" value={f.middleName} onChange={(e) => set('middleName', e.target.value)} />
+          <input maxLength={TEXT_LIMITS.name} autoComplete="additional-name" value={f.middleName} onChange={(e) => set('middleName', e.target.value)} />
         </label>
         <label className="field">
           <span>Last name *</span>
-          <input required autoComplete="family-name" value={f.lastName} onChange={(e) => set('lastName', e.target.value)} />
+          <input required maxLength={TEXT_LIMITS.name} autoComplete="family-name" value={f.lastName} onChange={(e) => set('lastName', e.target.value)} />
         </label>
       </fieldset>
 
@@ -96,7 +97,7 @@ export function PatientForm({ initial, initialContacts, submitLabel, savingLabel
       <div className={variant === 'staff' ? 'grid2' : undefined}>
         <label className="field">
           <span>Occupation</span>
-          <input autoComplete="organization-title" value={f.occupation} onChange={(e) => set('occupation', e.target.value)} />
+          <input maxLength={TEXT_LIMITS.short} autoComplete="organization-title" value={f.occupation} onChange={(e) => set('occupation', e.target.value)} />
         </label>
         {variant === 'staff' && (
           <label className="field">
@@ -119,6 +120,7 @@ export function PatientForm({ initial, initialContacts, submitLabel, savingLabel
           <span>Address</span>
           <input
             autoComplete="street-address"
+            maxLength={TEXT_LIMITS.address}
             placeholder="House no., street, barangay, city, province"
             value={f.addressLine1}
             onChange={(e) => set('addressLine1', e.target.value)}
@@ -133,7 +135,7 @@ export function PatientForm({ initial, initialContacts, submitLabel, savingLabel
       {variant === 'staff' && (
         <label className="field">
           <span>Remarks</span>
-          <textarea rows={2} value={f.remarks} onChange={(e) => set('remarks', e.target.value)} />
+          <textarea rows={2} maxLength={TEXT_LIMITS.remarks} value={f.remarks} onChange={(e) => set('remarks', e.target.value)} />
         </label>
       )}
 

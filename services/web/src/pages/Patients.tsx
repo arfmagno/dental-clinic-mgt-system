@@ -2,7 +2,8 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { nameGroup } from '@clinic/shared';
 import { ageOf, formatDate, formatMoney, type PatientSummary } from '../domain/format';
-import { groupStartPages, pageWindow, paginate } from '../domain/paging';
+import { groupStartPages, paginate } from '../domain/paging';
+import { Pager } from '../components/Pager';
 import { matchesPatient } from '../domain/search';
 import { Icon } from '../components/Icon';
 import { usePatientSummaries, useSearchIndex } from '../hooks/useData';
@@ -141,21 +142,7 @@ export function Patients() {
               );
             })}
           </ul>
-          {page.pageCount > 1 && (
-            <nav className="pager" aria-label="Pages">
-              <button className="btn" disabled={page.page === 1} onClick={() => go({ page: page.page - 1 })}><Icon name="back" size={18} /><span className="sr-only">Previous</span></button>
-              {pageWindow(page.page, page.pageCount).map((n, i) =>
-                n === '…' ? (
-                  <span key={`gap${i}`} className="muted">…</span>
-                ) : (
-                  <button key={n} className={`btn ${n === page.page ? 'on' : ''}`} aria-current={n === page.page ? 'page' : undefined} onClick={() => go({ page: n })}>
-                    {n}
-                  </button>
-                ),
-              )}
-              <button className="btn" disabled={page.page === page.pageCount} onClick={() => go({ page: page.page + 1 })}><span className="sr-only">Next</span><span className="flip"><Icon name="back" size={18} /></span></button>
-            </nav>
-          )}
+          <Pager page={page} onPage={(n) => go({ page: n })} />
         </>
       )}
     </div>

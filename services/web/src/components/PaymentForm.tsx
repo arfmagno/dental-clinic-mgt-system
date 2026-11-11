@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { PAYMENT_METHODS_OFFERED, PAYMENT_METHOD_LABEL, toCents, type PaymentMethod } from '@clinic/shared';
+import { PAYMENT_METHODS_OFFERED, PAYMENT_METHOD_LABEL, TEXT_LIMITS, toCents, type PaymentMethod } from '@clinic/shared';
 import { formatMoney, nowLocal } from '../domain/format';
 import { addPayment } from '../services/procedureService';
 
@@ -53,7 +53,7 @@ export function PaymentForm({ procedureId, balanceCents, onDone }: Props) {
         <label className="field"><span>Date</span><input required type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
         <label className="field"><span>Time</span><input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>
       </div>
-      <label className="field"><span>Remarks</span><input value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. OR no. 1234" /></label>
+      <label className="field"><span>Remarks</span><input maxLength={TEXT_LIMITS.note} value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. OR no. 1234" /></label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">
         <button className="btn primary" disabled={saving}>{saving ? 'Recording…' : 'Record payment'}</button>
