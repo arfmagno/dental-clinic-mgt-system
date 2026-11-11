@@ -62,8 +62,11 @@ export function Records() {
         {rows && <small className="muted">{owingPatients} patient{owingPatients === 1 ? '' : 's'} with a balance · <Link to="/transactions">Settle</Link></small>}
       </div>
       <div className="row wrap">
-        <input type="search" className="search grow" placeholder="Filter by patient, procedure, remarks…" aria-label="Filter records" value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <label className="switch"><input type="checkbox" checked={onlyOwing} onChange={(e) => setOnlyOwing(e.target.checked)} /><span>Unpaid only</span></label>
+        <label className="search-box grow">
+          <Icon name="search" size={18} />
+          <input type="search" className="search" placeholder="Search by patient, procedure, remarks…" aria-label="Search records" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        </label>
+        <label className="switch"><input type="checkbox" checked={onlyOwing} onChange={(e) => setOnlyOwing(e.target.checked)} /><span>Unpaid</span></label>
       </div>
 
       {rows === undefined ? (

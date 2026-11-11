@@ -13,7 +13,7 @@ const tiles: { to: string; icon: IconName; title: string }[] = [
   { to: '/transactions', icon: 'wallet', title: 'Transactions' },
 ];
 
-const KIND_LABEL = { patient: 'Patient', procedure: 'Record', payment: 'Payment' } as const;
+const KIND_LABEL = { patient: 'Patient', procedure: 'Procedure', payment: 'Transaction' } as const;
 
 export function Dashboard() {
   const activity = useRecentActivity(8);
@@ -41,8 +41,8 @@ export function Dashboard() {
             {activity.map((a) => (
               <li key={a.id}>
                 <Link to={`/patients/${a.patientId}`}>
-                  <span className={`badge ${a.action}`}>{a.action}</span>
-                  <span className="grow">{KIND_LABEL[a.kind]}: <strong>{a.title}</strong></span>
+                  <span className={`badge kind-${a.kind}`}>{KIND_LABEL[a.kind]}</span>
+                  <strong className="grow">{a.title}</strong>
                   <time className="muted small" dateTime={a.at}>{formatDate(a.at)} {new Date(a.at).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}</time>
                 </Link>
               </li>

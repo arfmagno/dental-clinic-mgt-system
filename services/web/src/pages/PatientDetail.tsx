@@ -233,7 +233,7 @@ export function PatientDetail() {
                             <div className="muted small">{PAYMENT_METHOD_LABEL[y.method]}{y.remarks && ` · ${y.remarks}`}</div>
                           </div>
                           <strong>{formatMoney(y.amountCents)}</strong>
-                          <button className="btn ghost sm danger-text" aria-label={`Remove payment of ${formatMoney(y.amountCents)}`} onClick={() => void removePayment(y)}>Remove</button>
+                          <button className="btn ghost icon sm danger-text" title="Remove payment" aria-label={`Remove payment of ${formatMoney(y.amountCents)}`} onClick={() => void removePayment(y)}><Icon name="trash" size={17} /></button>
                         </li>
                       ))}
                     </ul>

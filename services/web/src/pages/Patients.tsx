@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { nameGroup } from '@clinic/shared';
 import { ageOf, formatDate, formatMoney, type PatientSummary } from '../domain/format';
@@ -11,6 +11,16 @@ export const PAGE_SIZE = 25;
 const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
 const groupOf = (s: PatientSummary) => nameGroup(s.patient);
 
+// The simple (names only) view is remembered on this device.
+const VIEW_KEY = 'patients.simpleView';
+const readSimple = () => {
+  try {
+    return localStorage.getItem(VIEW_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
 /** Patient list: searchable, grouped by last-name initial, paginated (page and query live in the URL). */
 export function Patients() {
   const [params, setParams] = useSearchParams();
@@ -19,6 +29,15 @@ export function Patients() {
   const summaries = usePatientSummaries();
   const index = useSearchIndex();
   const listTop = useRef<HTMLDivElement>(null);
+  const [simple, setSimple] = useState(readSimple);
+  const toggleSimple = () => {
+    setSimple(!simple);
+    try {
+      localStorage.setItem(VIEW_KEY, simple ? '0' : '1');
+    } catch {
+      // storage unavailable: the choice lasts until the page is closed
+    }
+  };
 
   const shown = useMemo(() => (summaries ?? []).filter((s) => matchesPatient(s.patient, index?.get(s.patient.id) ?? '', q)), [summaries, index, q]);
   const starts = useMemo(() => groupStartPages(shown, groupOf, PAGE_SIZE), [shown]);
@@ -49,15 +68,23 @@ export function Patients() {
         <h1>Patients</h1>
         <Link to="/patients/new" className="btn primary"><Icon name="plus" size={18} /> Add Patient</Link>
       </div>
-      <input
-        type="search"
-        className="search"
-        placeholder="Search by name, address, phone, email…"
-        aria-label="Search patients"
-        autoFocus={params.get('focus') === '1'}
-        value={q}
-        onChange={(e) => go({ q: e.target.value })}
-      />
+      <div className="row">
+        <label className="search-box grow">
+          <Icon name="search" size={18} />
+          <input
+            type="search"
+            className="search"
+            placeholder="Search by name, address, phone, email…"
+            aria-label="Search patients"
+            autoFocus={params.get('focus') === '1'}
+            value={q}
+            onChange={(e) => go({ q: e.target.value })}
+          />
+        </label>
+        <button type="button" className={`btn ${simple ? 'on' : ''}`} aria-pressed={simple} onClick={toggleSimple} title="Show names only">
+          <Icon name="list" size={18} /> Simple view
+        </button>
+      </div>
       {summaries !== undefined && shown.length > 0 && (
         <nav className="az" aria-label="Jump to letter">
           {LETTERS.map((l) => (
@@ -79,7 +106,7 @@ export function Patients() {
           <p className="muted small">
             Showing {(page.page - 1) * PAGE_SIZE + 1}–{(page.page - 1) * PAGE_SIZE + page.items.length} of {page.total} patient{page.total === 1 ? '' : 's'}
           </p>
-          <ul className="plist">
+          <ul className={`plist ${simple ? 'simple' : ''}`}>
             {page.items.map((s, i) => {
               const { patient, name, lastVisit, balanceCents } = s;
               const g = groupOf(s);
@@ -94,17 +121,21 @@ export function Patients() {
                     </li>
                   )}
                   <li>
-                    <Link to={`/patients/${patient.id}`} className="card prow">
-                      <div className="avatar">{patient.photo ? <img src={patient.photo} alt="" /> : <span aria-hidden>👤</span>}</div>
-                      <div className="grow">
-                        <strong>{name}</strong>
-                        <div className="muted small">{[age !== null && `${age} yrs`, patient.occupation].filter(Boolean).join(' · ') || 'No details yet'}</div>
-                      </div>
-                      <div className="right small">
-                        <div className="muted">{lastVisit ? `Last visit ${formatDate(lastVisit)}` : 'No visits'}</div>
-                        {balanceCents > 0 && <div className="owed">Owes {formatMoney(balanceCents)}</div>}
-                      </div>
-                    </Link>
+                    {simple ? (
+                      <Link to={`/patients/${patient.id}`} className="prow-simple">{name}</Link>
+                    ) : (
+                      <Link to={`/patients/${patient.id}`} className="card prow">
+                        <div className="avatar">{patient.photo ? <img src={patient.photo} alt="" /> : <span aria-hidden>👤</span>}</div>
+                        <div className="grow">
+                          <strong>{name}</strong>
+                          <div className="muted small">{[age !== null && `${age} yrs`, patient.occupation].filter(Boolean).join(' · ') || 'No details yet'}</div>
+                        </div>
+                        <div className="right small">
+                          <div className="muted">{lastVisit ? `Last visit ${formatDate(lastVisit)}` : 'No visits'}</div>
+                          {balanceCents > 0 && <div className="owed">Owes {formatMoney(balanceCents)}</div>}
+                        </div>
+                      </Link>
+                    )}
                   </li>
                 </Fragment>
               );
