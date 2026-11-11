@@ -52,8 +52,8 @@ Double-click `start-clinic.bat` (Windows, Node.js 20+ installed). It installs an
 
 ### Windows: desktop program (installer)
 
-1. On the build machine: `npm install`, then `npm run dist:desktop`. The result is `services/desktop/release/Dental-Clinic-Setup-<version>.exe` (about 120 MB). The first build downloads Electron and NSIS.
-2. Copy the `.exe` to each clinic computer and run it. It installs for the current Windows user (no administrator rights) and adds **Dental Clinic** to the Start menu and the desktop. The installer is not code-signed, so SmartScreen may show *Windows protected your PC*: choose *More info → Run anyway*.
+1. On the build machine: `npm install`, then `npm run dist:desktop`. The result is `services/desktop/release/Magno-Dental-Clinic-Setup-<version>.exe` (about 120 MB). The first build downloads Electron and NSIS.
+2. Copy the `.exe` to each clinic computer and run it. It installs for the current Windows user (no administrator rights) and adds **Magno Dental Clinic** to the Start menu and the desktop. The installer is not code-signed, so SmartScreen may show *Windows protected your PC*: choose *More info → Run anyway*.
 3. Open it from the shortcut and create the staff PIN. It works with no network.
 4. To sync, open the Sync chip, switch sync on, and enter the **clinic server address** (for example `192.168.1.10:3001` on the clinic network, or `https://clinic.example.com`) and the server password. Plain `http://` is accepted for a server on the clinic LAN; use `https://` over the internet.
 5. To update, run the newer installer. Data is kept; it lives in the Windows user profile (`%APPDATA%Dental Clinic`).

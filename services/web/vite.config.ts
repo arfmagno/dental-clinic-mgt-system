@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['apple-touch-icon.png'],
       manifest: {
-        name: 'Dental Clinic Manager',
-        short_name: 'Clinic',
+        name: 'Magno Dental Clinic',
+        short_name: 'Magno Dental',
         description: 'Patient records, dental charts and procedures. Works offline.',
         start_url: '/',
         scope: '/',
@@ -26,7 +26,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,png,svg,woff2,webmanifest}'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
@@ -34,5 +34,9 @@ export default defineConfig({
     }),
   ],
   server: { port: 5173, proxy: { '/api': 'http://localhost:3001' } },
-  build: { chunkSizeWarningLimit: 900 },
+  build: {
+    chunkSizeWarningLimit: 900,
+    // Fonts ship as files: the server's Content-Security-Policy does not allow data: fonts.
+    assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined),
+  },
 });

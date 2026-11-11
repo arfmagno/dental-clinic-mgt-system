@@ -103,7 +103,7 @@ function drawTooth(doc: jsPDF, t: ToothBox, condition: Condition, ox: number, oy
 }
 
 /** Builds a styled, printable patient record: details, dental chart, procedures and payments. */
-export async function exportPatientPdf(bundle: PatientBundle, clinicName = 'Dental Clinic'): Promise<void> {
+export async function exportPatientPdf(bundle: PatientBundle, clinicName = 'Magno Dental Clinic'): Promise<void> {
   const { patient, contacts, procedures, payments, paid, records, entries } = bundle;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();

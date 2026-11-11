@@ -20,7 +20,7 @@ export function Dashboard() {
 
   return (
     <div className="stack">
-      <h1>Welcome back</h1>
+      <h1>Dashboard</h1>
       <div className="tiles">
         {tiles.map((t) => (
           <Link key={t.to} to={t.to} className="tile">

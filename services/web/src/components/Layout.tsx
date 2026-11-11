@@ -42,7 +42,7 @@ export function Layout() {
       <header className="topbar">
         <Link to="/" className="brand">
           <span className="brand-mark" aria-hidden>🦷</span>
-          <span>Clinic</span>
+          <span className="brand-name">Magno Dental Clinic</span>
         </Link>
         <nav className="topnav" aria-label="Main">
           {NAV.map((l) => (

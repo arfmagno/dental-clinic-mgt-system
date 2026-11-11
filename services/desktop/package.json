@@ -1,10 +1,10 @@
 {
   "name": "@clinic/desktop",
-  "productName": "Dental Clinic",
+  "productName": "Magno Dental Clinic",
   "version": "0.3.0",
   "private": true,
   "description": "Dental clinic records, charts and procedures. Works offline.",
-  "author": "Dental Clinic",
+  "author": "Magno Dental Clinic",
   "type": "module",
   "main": "src/main.js",
   "scripts": {
@@ -15,7 +15,7 @@
   },
   "build": {
     "appId": "local.dentalclinic.app",
-    "productName": "Dental Clinic",
+    "productName": "Magno Dental Clinic",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -48,8 +48,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Dental Clinic",
-      "artifactName": "Dental-Clinic-Setup-${version}.${ext}"
+      "shortcutName": "Magno Dental Clinic",
+      "artifactName": "Magno-Dental-Clinic-Setup-${version}.${ext}"
     }
   },
   "devDependencies": {

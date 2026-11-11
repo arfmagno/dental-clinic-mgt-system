@@ -11,7 +11,7 @@ test('first launch asks for a staff PIN; mismatches are refused', async ({ page 
   await expect(page.getByRole('alert')).toContainText('do not match');
   await page.getByLabel('Repeat PIN').fill(PIN);
   await page.getByRole('button', { name: 'Create PIN' }).click();
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
   for (const tile of ['Add Patient', 'Add Record', 'Find Patient', 'Transactions']) {
     await expect(page.locator('.tile', { hasText: tile })).toBeVisible();
   }
@@ -61,7 +61,7 @@ test('the app shell is precached by the service worker (opens without network)',
   await context.setOffline(true);
   await page.reload();
   const locked = page.getByRole('heading', { name: 'Clinic is locked' });
-  const home = page.getByRole('heading', { name: 'Welcome back' });
+  const home = page.getByRole('heading', { name: 'Dashboard' });
   await expect(locked.or(home)).toBeVisible();
   if (await locked.isVisible()) {
     await page.getByLabel('Staff PIN').fill(PIN);

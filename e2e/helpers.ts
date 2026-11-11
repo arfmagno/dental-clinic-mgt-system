@@ -10,7 +10,7 @@ export async function createStaffPin(page: Page, path = '/') {
   await page.getByLabel('New PIN (4–6 digits)').fill(PIN);
   await page.getByLabel('Repeat PIN').fill(PIN);
   await page.getByRole('button', { name: 'Create PIN' }).click();
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 }
 
 /** Loads the sample patients through the dashboard tool (available in any build via ?demo). */

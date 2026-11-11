@@ -82,11 +82,15 @@
 html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
-  font: 16px/1.5 Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  /* Plus Jakarta Sans is bundled with the app (works offline); the rest are fallbacks while it loads. */
+  font: 15.5px/1.55 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
 }
-h1 { font-size: 1.65rem; margin: 0; line-height: 1.2; letter-spacing: -0.02em; font-weight: 700; }
-h2 { font-size: 1.1rem; margin: 0; letter-spacing: -0.01em; font-weight: 650; }
+h1 { font-size: 1.75rem; margin: 0; line-height: 1.15; letter-spacing: -0.035em; font-weight: 750; }
+h2 { font-size: 1.1rem; margin: 0; letter-spacing: -0.02em; font-weight: 700; }
+h1, h2, h3, strong, .strong { overflow-wrap: anywhere; }
+.big-money, .stat strong, .money-row, .table td.right, .txn-end, .settle-list, .pay-list strong { font-variant-numeric: tabular-nums; }
 h3 { margin: 0; }
 a { color: var(--brand-strong); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -116,15 +120,17 @@ small, .small { font-size: 0.85rem; }
   background: var(--topbar-bg); backdrop-filter: saturate(180%) blur(14px); -webkit-backdrop-filter: saturate(180%) blur(14px);
   border-bottom: 1px solid var(--line);
 }
-.brand { font-weight: 750; font-size: 1.05rem; color: var(--ink); display: flex; align-items: center; gap: 10px; letter-spacing: -0.01em; }
+.brand { font-weight: 750; font-size: 1.05rem; color: var(--ink); display: flex; align-items: center; gap: 10px; letter-spacing: -0.025em; min-width: 0; flex: 0 1 auto; }
+.brand-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .brand:hover { text-decoration: none; }
-.brand-mark { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(135deg, var(--brand), #0ea5e9); font-size: 1.05rem; box-shadow: 0 4px 12px rgb(13 148 136 / 30%); }
+.brand-mark { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(135deg, var(--brand), #0ea5e9); font-size: 1.05rem; box-shadow: 0 4px 12px rgb(13 148 136 / 30%); }
 .topnav { display: flex; gap: 2px; flex: 1; overflow-x: auto; scrollbar-width: none; }
 .topnav a { padding: 8px 13px; border-radius: 999px; color: var(--muted); font-weight: 550; font-size: 0.93rem; white-space: nowrap; transition: background 0.15s, color 0.15s; }
 .topnav a:hover { background: var(--surface-2); color: var(--ink); text-decoration: none; }
 .topnav a.active { background: var(--brand-soft); color: var(--brand-strong); }
-.topbar-tools { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.topbar-tools { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: none; }
 .page { max-width: 1080px; margin: 0 auto; padding: 28px 20px 72px; }
+.page > *, .stack > *, .card, .modal-body > * { min-width: 0; }
 .narrow { max-width: 760px; margin-inline: auto; width: 100%; }
 .stack { display: flex; flex-direction: column; gap: 18px; }
 .stack.tight { gap: 10px; }
@@ -183,7 +189,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 /* 16px+ inputs: phones do not zoom in on focus. */
 input, select, textarea {
-  width: 100%; font: inherit; font-size: 1rem; color: var(--ink); background: var(--surface);
+  width: 100%; min-width: 0; font: inherit; font-size: 1rem; color: var(--ink); background: var(--surface);
   border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 13px; min-height: 46px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -194,9 +200,9 @@ input[type='checkbox'], input[type='radio'] { width: 20px; height: 20px; min-hei
 .field { display: flex; flex-direction: column; gap: 6px; border: 0; padding: 0; margin: 0; min-width: 0; }
 .field > span, .field > legend { font-weight: 600; font-size: 0.88rem; padding: 0; }
 .form { gap: 16px; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.name-grid { display: grid; grid-template-columns: 120px 1fr 1fr 1fr; gap: 10px 14px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.name-grid { display: grid; grid-template-columns: 120px repeat(3, minmax(0, 1fr)); gap: 10px 14px; }
 .name-grid > legend { margin-bottom: 6px; }
 .tight-grid { gap: 10px; }
 .search { font-size: 1.02rem; padding-left: 16px; border-radius: 999px; }
@@ -210,7 +216,8 @@ input[type='checkbox'], input[type='radio'] { width: 20px; height: 20px; min-hei
 .sync { position: relative; }
 .chip { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 12px; min-height: 34px; font: inherit; font-size: 0.84rem; font-weight: 550; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .chip.static { cursor: default; min-height: 0; padding: 3px 10px; background: var(--surface-2); }
-.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.chip-label { overflow: hidden; text-overflow: ellipsis; }
+.chip .dot { flex: none;  width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
 .chip.off .dot { background: var(--muted); }
 .chip.warn .dot { background: var(--warn); }
 .chip.bad .dot { background: var(--danger); }
@@ -230,7 +237,7 @@ input[type='checkbox'], input[type='radio'] { width: 20px; height: 20px; min-hei
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- dashboard ---------- */
-.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .tile { display: flex; flex-direction: column; justify-content: space-between; gap: 18px; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); box-shadow: var(--shadow); min-height: 118px; transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s; }
 .tile:hover { text-decoration: none; transform: translateY(-2px); border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); }
 .tile-icon { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-strong); }
@@ -303,7 +310,7 @@ input[type='checkbox'], input[type='radio'] { width: 20px; height: 20px; min-hei
 .swatch.s-missing { background: transparent !important; border-style: dashed; }
 .tooth-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.9rem; }
 .pick-list { display: flex; flex-direction: column; gap: 8px; }
-.pick-row { display: grid; grid-template-columns: 38px 160px 1fr 44px; gap: 8px; align-items: center; }
+.pick-row { display: grid; grid-template-columns: 38px minmax(0, 160px) minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
 .teeth-field { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; gap: 12px; }
 
 /* ---------- dental records ---------- */
@@ -351,7 +358,7 @@ input[type='checkbox'], input[type='radio'] { width: 20px; height: 20px; min-hei
 .clamp { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- form bits ---------- */
-.contact-row { display: grid; grid-template-columns: 120px 1fr 150px auto 44px; gap: 8px; align-items: center; }
+.contact-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(0, 150px) auto 44px; gap: 8px; align-items: center; }
 .primary-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .primary-pick:has(input:checked) { color: var(--brand-strong); font-weight: 600; }
 .address-row { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
@@ -377,9 +384,15 @@ input[type='checkbox'], input[type='radio'] { width: 20px; height: 20px; min-hei
 .staff-exit .link { color: var(--muted); font-size: 0.85rem; }
 
 /* ---------- tablets ---------- */
+@media (max-width: 1080px) and (min-width: 761px) {
+  .brand-name { display: none; }
+}
 @media (max-width: 980px) {
+  /* Tablets and phones: the sync chip shrinks to its status dot (tap it for details; screen readers still hear the label). */
+  .topbar .chip-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .topbar .chip { min-width: 34px; justify-content: center; padding: 6px 10px; }
   .topnav a { padding: 8px 10px; font-size: 0.88rem; }
-  .tiles { grid-template-columns: repeat(2, 1fr); }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ---------- phones ---------- */
@@ -409,22 +422,22 @@ input[type='checkbox'], input[type='radio'] { width: 20px; height: 20px; min-hei
   .toasts { left: 16px; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); align-items: center; }
   .bulkbar { bottom: calc(80px + env(safe-area-inset-bottom)); }
 
-  .tiles { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .tile { min-height: 104px; padding: 16px; }
   .grid2, .grid3, .address-row { grid-template-columns: 1fr; }
-  .name-grid { grid-template-columns: 1fr 1fr; }
-  .tight-grid { grid-template-columns: 1fr 1fr; }
-  .contact-row { grid-template-columns: 104px 1fr 44px; }
+  .name-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .contact-row { grid-template-columns: 104px minmax(0, 1fr) auto; }
   .contact-row .label-input { grid-column: 1 / 3; grid-row: 2; }
   .contact-row .primary-pick { grid-column: 3; grid-row: 2; }
-  .pick-row { grid-template-columns: 34px 1fr 44px; }
+  .pick-row { grid-template-columns: 34px minmax(0, 1fr) 44px; }
   .pick-row input { grid-column: 1 / -1; grid-row: 2; }
   .prow { flex-wrap: wrap; }
   .profile-head { gap: 14px; }
   .avatar.xl { width: 72px; height: 72px; border-radius: 18px; }
   .facts { grid-template-columns: 1fr 1fr; gap: 12px 14px; }
   .actions .btn { flex: 1 1 auto; }
-  .profile .actions { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .profile .actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .profile .actions .btn.primary { grid-column: 1 / -1; }
   .activity a { flex-wrap: wrap; row-gap: 2px; }
   .activity time { flex-basis: 100%; padding-left: 2px; }
@@ -444,21 +457,27 @@ input[type='checkbox'], input[type='radio'] { width: 20px; height: 20px; min-hei
   .rtable { min-width: 0; }
   .rtable thead { display: none; }
   .rtable tbody, .rtable tr, .rtable td { display: block; }
-  .rtable tbody tr { padding: 12px 16px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px 12px; }
+  .rtable tbody tr { padding: 12px 16px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 12px; }
   .rtable td { padding: 0; border: 0; text-align: left !important; }
   .rtable td:nth-child(-n + 3) { grid-column: 1 / -1; }
   .rtable td[data-label]::before { content: attr(data-label); display: block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
   .rtable td:nth-child(-n + 3)::before { display: none; }
   .rtable td:nth-child(2) { font-weight: 650; order: -1; }
   .rtable tfoot, .rtable tfoot tr { display: block; }
-  .rtable tfoot tr { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px 12px; padding: 12px 16px; background: var(--surface-2); }
+  .rtable tfoot tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 12px; padding: 12px 16px; background: var(--surface-2); }
   .rtable tfoot td { padding: 0; background: none; text-align: left !important; }
   .rtable tfoot td:first-child { grid-column: 1 / -1; }
   .clamp { max-width: 100%; }
 }
 
+@media (max-width: 480px) {
+  .brand { font-size: 0.98rem; gap: 8px; }
+}
+
 @media (max-width: 380px) {
   .facts { grid-template-columns: 1fr; }
+  .profile .actions .btn:not(.primary) .icon { display: none; }
+  .profile .actions .btn { padding-inline: 8px; }
   .tab-label { font-size: 0.6rem; }
 }
 

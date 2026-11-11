@@ -66,7 +66,7 @@ export function PatientDetail() {
     setExporting(true);
     try {
       const { exportPatientPdf } = await import('../services/pdfService'); // loaded on demand to keep startup light
-      await exportPatientPdf(bundle!, import.meta.env.VITE_CLINIC_NAME ?? 'Dental Clinic');
+      await exportPatientPdf(bundle!, import.meta.env.VITE_CLINIC_NAME ?? 'Magno Dental Clinic');
       notify('PDF exported');
     } catch {
       notify('Could not export the PDF', 'error');

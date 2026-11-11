@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { App } from './App';
 import { isDesktop } from './services/desktop';
 import { applyTheme } from './services/theme';
+import '@fontsource-variable/plus-jakarta-sans';
 import './styles.css';
 
 // Apply the saved theme (light unless dark was chosen) before the first paint.

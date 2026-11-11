@@ -49,7 +49,7 @@ export function SyncChip() {
   return (
     <div className="sync" ref={root}>
       <button className={`chip ${tone}`} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="dialog">
-        <span className="dot" aria-hidden /> {label}
+        <span className="dot" aria-hidden /> <span className="chip-label">{label}</span>
       </button>
       {open && (
         <div className="popover" role="dialog" aria-label="Sync settings">

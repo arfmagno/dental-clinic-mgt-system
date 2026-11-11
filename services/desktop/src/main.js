@@ -18,8 +18,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = app.isPackaged ? path.join(process.resourcesPath, 'web') : path.resolve(here, '../../web/dist');
 const SETTINGS = () => path.join(app.getPath('userData'), 'settings.json');
 
-// Automated tests run the packaged app with a throwaway profile.
-if (process.env.CLINIC_USER_DATA) app.setPath('userData', path.resolve(process.env.CLINIC_USER_DATA));
+// Records live in %APPDATA%\Dental Clinic. The folder keeps its original name after the rename to
+// "Magno Dental Clinic", so existing installs keep their data. Automated tests use a throwaway profile.
+app.setPath('userData', process.env.CLINIC_USER_DATA ? path.resolve(process.env.CLINIC_USER_DATA) : path.join(app.getPath('appData'), 'Dental Clinic'));
 
 protocol.registerSchemesAsPrivileged([
   { scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
@@ -65,7 +66,7 @@ function createWindow() {
     height: 860,
     minWidth: 360,
     minHeight: 500,
-    title: 'Dental Clinic',
+    title: 'Magno Dental Clinic',
     backgroundColor: '#f4f7f7',
     autoHideMenuBar: true,
     webPreferences: {

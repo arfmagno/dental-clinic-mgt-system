@@ -1,4 +1,4 @@
-# Dental Clinic Manager
+# Magno Dental Clinic
 
 Patient records, FDI dental charts, procedures and payments for a dental clinic. It is **offline-first**: everything is saved on the device, the clinic keeps working without internet, and records can sync to a clinic server when sync is switched on. It runs as an installable web app (PWA) and as a **Windows desktop program** with its own installer and desktop shortcut.
 
@@ -48,7 +48,7 @@ npm run migration:new -- <description> [--ts]   # new timestamped migration (see
 
 There are two ways. Both open from an icon with no internet, and both keep records on the computer until sync is switched on.
 
-**A. Windows program (installer).** Build it once with `npm run dist:desktop`. Then run `services/desktop/release/Dental-Clinic-Setup-0.3.0.exe` on each clinic computer. It adds **Dental Clinic** to the Start menu and the desktop, and needs no administrator rights. To sync, enter the clinic server address (for example `192.168.1.10:3001`) and the password on the Connect page. The installer is not code-signed, so Windows SmartScreen may ask you to confirm (*More info → Run anyway*).
+**A. Windows program (installer).** Build it once with `npm run dist:desktop`. Then run `services/desktop/release/Magno-Dental-Clinic-Setup-0.3.0.exe` on each clinic computer. It adds **Magno Dental Clinic** to the Start menu and the desktop, and needs no administrator rights. To sync, enter the clinic server address (for example `192.168.1.10:3001`) and the password on the Connect page. The installer is not code-signed, so Windows SmartScreen may ask you to confirm (*More info → Run anyway*).
 
 **B. Install from the browser (PWA).**
 

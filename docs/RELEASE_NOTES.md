@@ -6,7 +6,7 @@ Written for the clinic. The technical list is in [CHANGELOG.md](../CHANGELOG.md)
 
 ### What's new
 
-- **A Windows program with a desktop icon.** Run `Dental-Clinic-Setup-0.3.0.exe` once. It adds **Dental Clinic** to the Start menu and the desktop, and no administrator rights are needed. The program opens with no internet, and records stay on that computer until you switch sync on.
+- **A Windows program with a desktop icon.** Run `Magno-Dental-Clinic-Setup-0.3.0.exe` once. It adds **Magno Dental Clinic** to the Start menu and the desktop, and no administrator rights are needed. The program opens with no internet, and records stay on that computer until you switch sync on.
   - The first time you connect, type the clinic server's address (for example `192.168.1.10:3001`) and the server password.
   - Installing from the browser (Chrome or Edge → *Install*) still works too.
 - **"Other" procedures:** choosing *Other* opens a box where you type what was done (for example *Gum treatment*). That name is what appears on the record and the PDF.
