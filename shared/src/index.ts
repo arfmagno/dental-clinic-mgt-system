@@ -8,7 +8,7 @@ export * from './ids.js';
 export * from './nationalities.js';
 export * from './vocab.js';
 export * from './demo.js';
-import type { Condition, ContactType, DentalClassification, PaymentMethod } from './vocab.js';
+import type { AuditAction, AuditEntity, Condition, ContactType, DentalClassification, PaymentMethod, StaffRole } from './vocab.js';
 
 // ---------- Rows ----------
 export interface BaseRow {
@@ -80,26 +80,54 @@ export interface ToothEntry extends BaseRow {
   remarks: string;
 }
 
+/**
+ * A clinic staff member. Accounts sync to every device so anyone can sign in anywhere. The PIN is
+ * never stored: only a salted PBKDF2-SHA-256 hash. Deactivating an account is a soft delete.
+ */
+export interface Staff extends BaseRow {
+  name: string;
+  role: StaffRole;
+  pinSalt: string; // base64; '' = cannot sign in (e.g. sample staff)
+  pinHash: string; // base64
+  pinIterations: number;
+}
+
+/**
+ * Append-only audit trail: one entry per add, change or removal, written in the same transaction
+ * as the change itself. `actor` is a staff id, or 'patient' for patient self-registration.
+ */
+export interface AuditEntry extends BaseRow {
+  actor: string;
+  action: AuditAction;
+  entity: AuditEntity;
+  entityId: string;
+  patientId: string; // '' when not about a patient (e.g. staff accounts)
+}
+
 // ---------- Sync definition ----------
 // Order matters: parents before children (server enforces foreign keys).
 export const SYNC_TABLES = [
+  'staff',
   'patients',
   'patient_contacts',
   'procedures',
   'payments',
   'dental_records',
   'tooth_entries',
+  'audit_log',
 ] as const;
 export type SyncTable = (typeof SYNC_TABLES)[number];
 
 export const BASE_COLUMNS = ['id', 'createdAt', 'updatedAt', 'isDeleted'] as const;
 export const TABLE_COLUMNS: Record<SyncTable, readonly string[]> = {
+  staff: ['name', 'role', 'pinSalt', 'pinHash', 'pinIterations'],
   patients: ['salutation', 'firstName', 'middleName', 'lastName', 'birthDate', 'occupation', 'civilStatus', 'citizenshipCode', 'addressLine1', 'addressCountryCode', 'photo', 'remarks', 'dentalClassification'],
   patient_contacts: ['patientId', 'type', 'value', 'label', 'isPrimary'],
   procedures: ['patientId', 'type', 'date', 'time', 'costCents', 'remarks'],
   payments: ['procedureId', 'amountCents', 'paidAt', 'method', 'remarks'],
   dental_records: ['patientId', 'procedureId', 'recordedAt', 'remarks'],
   tooth_entries: ['recordId', 'patientId', 'procedureId', 'tooth', 'condition', 'remarks'],
+  audit_log: ['actor', 'action', 'entity', 'entityId', 'patientId'],
 };
 export const BOOLEAN_COLUMNS = new Set(['isDeleted', 'isPrimary']);
 

@@ -79,7 +79,11 @@ export function buildDemoData(opts: DemoOptions = {}): Record<SyncTable, AnyRow[
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   };
   const base = (id: string) => ({ id, createdAt: now, updatedAt: now, isDeleted: false });
-  const out: Record<SyncTable, AnyRow[]> = { patients: [], patient_contacts: [], procedures: [], payments: [], dental_records: [], tooth_entries: [] };
+  const out: Record<SyncTable, AnyRow[]> = { staff: [], patients: [], patient_contacts: [], procedures: [], payments: [], dental_records: [], tooth_entries: [], audit_log: [] };
+  // Sample staff have no PIN, so nobody can sign in as them; they only make the audit trail readable.
+  const staffIds = [demoId('staff:0'), demoId('staff:1')];
+  out.staff.push({ ...base(staffIds[0]), name: 'Dr. Sample Dentist', role: 'admin', pinSalt: '', pinHash: '', pinIterations: 0 });
+  out.staff.push({ ...base(staffIds[1]), name: 'Sample Front Desk', role: 'staff', pinSalt: '', pinHash: '', pinIterations: 0 });
 
   const count = opts.patients ?? 60;
   for (let i = 0; i < count; i++) {
@@ -162,5 +166,29 @@ export function buildDemoData(opts: DemoOptions = {}): Record<SyncTable, AnyRow[
       );
     });
   }
+  // Timestamps follow the story: a patient is registered at their first visit, and each visit and
+  // payment is recorded when it happened (never later than "now").
+  const isoOf = (local: string) => {
+    const d = new Date(local);
+    return Number.isNaN(d.getTime()) || d.toISOString() > now ? now : d.toISOString();
+  };
+  const firstVisit = new Map<string, string>();
+  for (const p of out.procedures) {
+    const at = `${p.date}T${p.time}`;
+    const pid = p.patientId as string;
+    if (!firstVisit.has(pid) || at < firstVisit.get(pid)!) firstVisit.set(pid, at);
+  }
+  for (const p of out.patients) {
+    const v = firstVisit.get(p.id);
+    if (v) p.createdAt = p.updatedAt = isoOf(v);
+  }
+
+  // one "added" audit entry per sample patient, visit and payment
+  const audit = (entity: string, row: AnyRow, patientId: string, at: string) =>
+    out.audit_log.push({ ...base(demoId(`audit:${entity}:${row.id}`)), createdAt: at, updatedAt: at, actor: pick(staffIds), action: 'added', entity, entityId: row.id, patientId });
+  const procPatient = new Map(out.procedures.map((p) => [p.id, p.patientId as string]));
+  for (const p of out.patients) audit('patients', p, p.id, p.createdAt);
+  for (const p of out.procedures) audit('procedures', p, p.patientId as string, isoOf(`${p.date}T${p.time}`));
+  for (const y of out.payments) audit('payments', y, procPatient.get(y.procedureId as string) ?? '', isoOf(y.paidAt as string));
   return out;
 }

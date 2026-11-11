@@ -91,3 +91,15 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   hmo: 'HMO',
   other: 'Other',
 };
+
+// ---------- Staff and audit ----------
+/** admin: everything, plus managing staff, restoring backups and deleting patients. staff: day-to-day work. */
+export const STAFF_ROLES = ['admin', 'staff'] as const;
+export type StaffRole = (typeof STAFF_ROLES)[number];
+export const STAFF_ROLE_LABEL: Record<StaffRole, string> = { admin: 'Admin', staff: 'Staff' };
+
+export const AUDIT_ACTIONS = ['added', 'updated', 'removed'] as const;
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+/** Tables whose changes are written to the audit trail (contacts and tooth entries travel with their parent). */
+export const AUDIT_ENTITIES = ['staff', 'patients', 'procedures', 'payments', 'dental_records'] as const;
+export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
