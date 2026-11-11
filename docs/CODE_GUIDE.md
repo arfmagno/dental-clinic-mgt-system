@@ -55,7 +55,8 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `data/repository.ts` | `createRow` / `updateRow` / `softDeleteRow` stamp uuid + timestamps + dirty; `toWire` strips local fields |
 | `domain/chart.ts` | `buildChart`: replay dental records oldest→newest, optional "as of" record |
 | `domain/format.ts` | Money, dates, `nowLocal()`, `ageOf`, `formatAddress`, `formalName`, `summarize` (last visit, balance from payments) |
-| `domain/search.ts` | `matchesPatient` (accent-insensitive, every word must match) |
+| `domain/search.ts` | `matchesPatient` (accent-insensitive, every word must match), `contactSearchText` (phones also as "0917…" and digits) |
+| `domain/contact.ts` | `contactLink`: `tel:` / `mailto:` / Messenger link for a contact (Transactions' Contact button) |
 | `domain/paging.ts` | `paginate`, `groupStartPages` (A–Z bar), `pageWindow` |
 | `services/patientService.ts` | `savePatient` (patient + contacts atomically, one primary contact; address country kept only with an address line), `validatePatient` (names, DOB not in the future, citizenship), `deletePatient` |
 | `services/procedureService.ts` | `createProcedure` (procedure + dental record + tooth entries + optional first payment in one transaction), update, `addPayment`, `settleProcedures` (each record in full, one transaction), `deletePayment`, cascade delete |
@@ -86,6 +87,7 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `teeth.ts` | FDI quadrants, `TOOTH_CATALOG`, anatomical outlines (`toothShape`), `flattenPath` for the PDF, `toothLayout` |
 | `names.ts` | `formatName`, `nameSortKey`, `nameGroup`, `fold` |
 | `countries.ts` | `countryOptions` / `countryName` from `Intl.DisplayNames`; `DEFAULT_COUNTRY = 'PH'` |
+| `phone.ts` | `DIAL_CODES` (country → calling code), `flagOf`, `parsePhone` / `formatPhone` ("+63 917 123 4567"), `phoneHref` |
 | `nationalities.ts` | Country code to nationality (`PH` → Filipino), `nationalityOptions` (Filipino first), `DEFAULT_CITIZENSHIP` |
 | `demo.ts` | `buildDemoData`: deterministic sample rows for every synced table |
 | `validation.ts` | `validateColumns(table, row)`: used by the server on push |

@@ -9,6 +9,10 @@ All notable changes to this project are documented here. Format based on [Keep a
 - **Transactions** page (`/transactions`): pick a patient, see their outstanding total and every unsettled record, settle one (any amount, defaults to its balance) or select several and settle them in full at once, and see their payment history. Settling adds payment rows; balances stay derived (no new table).
 - **In-app pop-ups and notifications:** confirmations are app dialogs with descriptive buttons (no browser `confirm`), and a short notification confirms each action ("Record added", "Payment recorded", "Settled 3 records · ₱…").
 - **Phone layout:** bottom tab bar (Home, Patients, Add, Records, Transactions) with an Add sheet, dialogs as bottom sheets, the records table as cards, 16px inputs (no zoom on focus), safe-area insets.
+- **Phone country codes:** a phone contact has a country-code dropdown (flag, short code and calling code, e.g. "🇵🇭 PH +63"; Philippines first and the default). Numbers are saved as `+63 917 123 4567` (a leading 0 is dropped); older numbers without a code are read as Philippine and converted on the next save. Search still finds "0917…" and digits-only forms. Flags use a bundled font on Windows (`country-flag-emoji-polyfill`, works offline).
+- **Contact button** on Transactions once a patient is picked: uses their primary contact (calls a phone, opens an email, or opens Messenger; anything else is copied). The desktop app hands `tel:`/`mailto:` links to the system.
+- **Patients: Simple view** button: names only, in one compact list for quick scrolling (remembered on the device).
+- Tests: phone codes, contact links, phone search; end-to-end country code, Contact button, Records/dashboard/Patients changes.
 - Tests: classification, settling, pop-ups and notifications, the Transactions flow, the new migration; end-to-end phone layout, classification charts and settling.
 
 ### Changed
@@ -17,7 +21,9 @@ All notable changes to this project are documented here. Format based on [Keep a
 - Action buttons are short (Edit, Delete, Remove, Pay, Export); descriptive labels stay on the Save/Cancel buttons of pop-ups.
 - Light mode by default, switched with a single dark-mode toggle (no "match device" option).
 - Patient page: "Dental Records" heading; each record shows a "Payment history" label.
-- Dashboard: no Patients / Outstanding balance cards; the outstanding balance moved to Records.
+- Dashboard: no Patients / Outstanding balance cards; the outstanding balance moved to Records. Recent actions are labelled by what they concern (Patient, Procedure, Transaction) instead of added/removed.
+- Records: the filter reads "Search by patient, procedure, remarks…" with a search icon (also on Patients); "Unpaid only" is now "Unpaid".
+- A patient's payment history removes a payment with a trash icon instead of a "Remove" text button.
 
 ### Removed
 - The Lock button in the navigation bar. The PIN is still asked for in every new session, and "Hand to patient" is on the Add Patient page.
