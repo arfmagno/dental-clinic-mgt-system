@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { DentalRecord, Patient, PatientContact, Payment, Procedure, ToothEntry } from '@clinic/shared';
+import type { AuditEntry, DentalRecord, Patient, PatientContact, Payment, Procedure, Staff, ToothEntry } from '@clinic/shared';
 
 /** Every locally stored row carries `dirty`: 1 = has changes not yet pushed to the server. */
 export type Local<T> = T & { dirty: 0 | 1 };
@@ -25,6 +25,8 @@ export class ClinicDB extends Dexie {
   payments!: Table<Local<Payment>, string>;
   dental_records!: Table<Local<DentalRecord>, string>;
   tooth_entries!: Table<Local<ToothEntry>, string>;
+  staff!: Table<Local<Staff>, string>;
+  audit_log!: Table<Local<AuditEntry>, string>;
   meta!: Table<MetaRow, string>;
 
   constructor(name = 'clinic') {
@@ -39,6 +41,11 @@ export class ClinicDB extends Dexie {
       dental_records: 'id, patientId, procedureId, recordedAt, dirty',
       tooth_entries: 'id, patientId, recordId, procedureId, dirty',
       meta: 'key',
+    });
+    // Staff accounts and the audit trail (server migration 20261112090000-staff-and-audit-log.sql).
+    this.version(4).stores({
+      staff: 'id, dirty',
+      audit_log: 'id, patientId, entityId, createdAt, dirty',
     });
   }
 }

@@ -7,6 +7,8 @@ export interface SyncOutcome {
   pushed: number;
   pulled: number;
   rejected: number;
+  /** Distinct reasons the server gave for refusing rows (shown in Settings → Sync). */
+  problems: string[];
 }
 
 const BATCH = 200;
@@ -26,7 +28,7 @@ export async function pendingCount(): Promise<number> {
  * Conflicts are last-write-wins on `updatedAt`, decided by the server on push and here on pull.
  */
 export async function syncOnce(token: string): Promise<SyncOutcome> {
-  const outcome: SyncOutcome = { pushed: 0, pulled: 0, rejected: 0 };
+  const outcome: SyncOutcome = { pushed: 0, pulled: 0, rejected: 0, problems: [] };
 
   // ---- push (parents before children, in batches) ----
   const queue: { table: SyncTable; row: AnyRow & { dirty?: unknown } }[] = [];
@@ -39,6 +41,7 @@ export async function syncOnce(token: string): Promise<SyncOutcome> {
 
     const res = await api<PushResponse>('/sync/push', { method: 'POST', body: { changes }, token });
     outcome.rejected += res.rejected.length;
+    for (const r of res.rejected) if (!outcome.problems.includes(r.error)) outcome.problems.push(r.error);
 
     await db.transaction('rw', db.tables, async () => {
       for (const { table: t, row } of batch) {

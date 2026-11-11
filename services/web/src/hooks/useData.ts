@@ -3,6 +3,7 @@ import {
   formatName,
   nameSortKey,
   paidByProcedure,
+  type AuditEntity,
   type DentalRecord,
   type Patient,
   type PatientContact,
@@ -10,8 +11,10 @@ import {
   type Procedure,
   type ToothEntry,
 } from '@clinic/shared';
+import { PATIENT_ACTOR } from '../data/actor';
 import { db } from '../data/db';
 import { formatAddress, summarize, type PatientSummary } from '../domain/format';
+import { buildReport, type Period, type Report } from '../domain/reports';
 import { contactSearchText } from '../domain/search';
 
 /** Live, offline-first queries. `undefined` means still loading. All hide soft-deleted rows. */
@@ -105,28 +108,92 @@ export function useAllProcedures(): ProcedureRow[] | undefined {
 export interface ActivityItem {
   id: string;
   at: string;
-  kind: 'patient' | 'procedure' | 'payment';
+  kind: 'patient' | 'procedure' | 'payment' | 'chart' | 'staff';
   action: 'added' | 'updated' | 'removed';
   title: string;
+  /** '' for staff-account changes. */
   patientId: string;
+  /** Who did it: a staff name, "Patient (self-registration)", or '' when not recorded (older data). */
+  by: string;
 }
 
-/** Recent actions, derived from row timestamps (no separate log to keep in sync). */
-export function useRecentActivity(limit = 8): ActivityItem[] | undefined {
+const KIND_OF: Record<AuditEntity, ActivityItem['kind']> = { patients: 'patient', procedures: 'procedure', payments: 'payment', dental_records: 'chart', staff: 'staff' };
+
+/**
+ * Every action, newest first, from the audit trail (who did what, written with each change).
+ * Rows from before the trail existed have no entries; their latest change is shown from the row's
+ * own timestamps, without a "by".
+ */
+export function useActivity(): ActivityItem[] | undefined {
   return useLiveQuery(async () => {
-    const [patients, procedures, payments] = await Promise.all([db.patients.toArray(), db.procedures.toArray(), db.payments.toArray()]);
+    const [patients, procedures, payments, records, staff, audit] = await Promise.all([
+      db.patients.toArray(),
+      db.procedures.toArray(),
+      db.payments.toArray(),
+      db.dental_records.toArray(),
+      db.staff.toArray(),
+      db.audit_log.toArray(),
+    ]);
     const names = new Map(patients.map((p) => [p.id, formatName(p)]));
     const procs = new Map(procedures.map((p) => [p.id, p]));
+    const pays = new Map(payments.map((p) => [p.id, p]));
+    const recs = new Map(records.map((r) => [r.id, r]));
+    const staffNames = new Map(staff.map((s) => [s.id, s.name]));
+    const patientName = (id: string) => names.get(id) ?? 'Unknown patient';
+    const byName = (actor: string) => (actor === PATIENT_ACTOR ? 'Patient (self-registration)' : (staffNames.get(actor) ?? 'Unknown'));
+
+    const title = (kind: ActivityItem['kind'], entityId: string, patientId: string): string | null => {
+      switch (kind) {
+        case 'patient':
+          return patientName(entityId);
+        case 'procedure':
+          return `${procs.get(entityId)?.type ?? 'Procedure'} · ${patientName(patientId)}`;
+        case 'payment': {
+          const proc = procs.get(pays.get(entityId)?.procedureId ?? '');
+          return `${proc?.type ?? 'Payment'} · ${patientName(patientId)}`;
+        }
+        case 'chart':
+          // a procedure's own chart record is covered by the procedure entry
+          return recs.get(entityId)?.procedureId ? null : `Chart update · ${patientName(patientId)}`;
+        case 'staff':
+          return `Staff account · ${staffNames.get(entityId) ?? 'Unknown'}`;
+      }
+    };
+
+    const items: ActivityItem[] = [];
+    const audited = new Set<string>();
+    for (const e of audit) {
+      if (e.isDeleted) continue;
+      audited.add(e.entityId);
+      const kind = KIND_OF[e.entity];
+      const t = title(kind, e.entityId, e.patientId);
+      if (t !== null) items.push({ id: `a${e.id}`, at: e.createdAt, kind, action: e.action, title: t, patientId: e.patientId, by: byName(e.actor) });
+    }
+
+    // Older rows without audit entries: show their latest change.
     const action = (r: { isDeleted: boolean; createdAt: string; updatedAt: string }) =>
       r.isDeleted ? 'removed' : r.updatedAt === r.createdAt ? 'added' : 'updated';
-    const items: ActivityItem[] = [
-      ...patients.map((p): ActivityItem => ({ id: `p${p.id}`, at: p.updatedAt, kind: 'patient', action: action(p), title: formatName(p), patientId: p.id })),
-      ...procedures.map((p): ActivityItem => ({ id: `r${p.id}`, at: p.updatedAt, kind: 'procedure', action: action(p), title: `${p.type} · ${names.get(p.patientId) ?? 'Unknown patient'}`, patientId: p.patientId })),
-      ...payments.flatMap((p): ActivityItem[] => {
-        const proc = procs.get(p.procedureId);
-        return proc ? [{ id: `y${p.id}`, at: p.updatedAt, kind: 'payment', action: action(p), title: `${proc.type} · ${names.get(proc.patientId) ?? 'Unknown patient'}`, patientId: proc.patientId }] : [];
-      }),
-    ];
-    return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
-  }, [limit]);
+    const legacy = (id: string, at: string, kind: ActivityItem['kind'], act: ActivityItem['action'], patientId: string) => {
+      if (audited.has(id)) return;
+      const t = title(kind, id, patientId);
+      if (t !== null) items.push({ id: `l${id}`, at, kind, action: act, title: t, patientId, by: '' });
+    };
+    for (const p of patients) legacy(p.id, p.updatedAt, 'patient', action(p), p.id);
+    for (const p of procedures) legacy(p.id, p.updatedAt, 'procedure', action(p), p.patientId);
+    for (const p of payments) {
+      const proc = procs.get(p.procedureId);
+      if (proc) legacy(p.id, p.updatedAt, 'payment', action(p), proc.patientId);
+    }
+    for (const r of records) legacy(r.id, r.updatedAt, 'chart', action(r), r.patientId);
+
+    return items.sort((a, b) => b.at.localeCompare(a.at) || b.id.localeCompare(a.id));
+  }, []);
+}
+
+/** Clinic report for a period, recomputed live as records change. */
+export function useReport(period: Period): Report | undefined {
+  return useLiveQuery(async () => {
+    const [patients, procedures, payments] = await Promise.all([db.patients.toArray(), db.procedures.toArray(), db.payments.toArray()]);
+    return buildReport({ patients, procedures, payments }, period);
+  }, [period]);
 }

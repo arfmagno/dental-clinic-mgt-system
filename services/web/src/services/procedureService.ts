@@ -1,6 +1,6 @@
 import { PAYMENT_METHODS, isValidTooth, type Condition, type PaymentMethod } from '@clinic/shared';
 import { db } from '../data/db';
-import { createRow, softDeleteRow, updateRow } from '../data/repository';
+import { createRow, softDeleteRow, updateRow, writeTx } from '../data/repository';
 import { recordedAtOf } from '../domain/format';
 
 export interface ToothInput {
@@ -48,20 +48,16 @@ function validatePayment(p: PaymentInput) {
 /**
  * Creating a procedure ALWAYS creates the matching dental record (and its per-tooth entries) in
  * the same transaction, so a patient's chart can never drift from their procedure history.
+ * (The chart can also change without a procedure: see `createChartUpdate`.)
  */
 export async function createProcedure(input: ProcedureInput): Promise<string> {
   validateProcedure(input);
-  const seen = new Set<number>();
-  for (const t of input.teeth) {
-    if (!isValidTooth(t.tooth)) throw new Error(`Tooth ${t.tooth} is not a valid FDI tooth`);
-    if (seen.has(t.tooth)) throw new Error(`Tooth ${t.tooth} listed twice`);
-    seen.add(t.tooth);
-  }
+  validateTeeth(input.teeth);
   const at = recordedAtOf(input.date, input.time);
   const payment = input.payment && input.payment.amountCents > 0 ? { ...input.payment, paidAt: at } : null;
   if (payment) validatePayment(payment);
 
-  return db.transaction('rw', [db.patients, db.procedures, db.payments, db.dental_records, db.tooth_entries], async () => {
+  return writeTx([db.patients, db.procedures, db.payments, db.dental_records, db.tooth_entries], async () => {
     const patient = await db.patients.get(input.patientId);
     if (!patient || patient.isDeleted) throw new Error('A procedure needs an existing patient');
 
@@ -98,7 +94,7 @@ export type ProcedurePatch = Partial<Pick<ProcedureInput, 'type' | 'date' | 'tim
 
 /** Edits the procedure's own details; keeps the linked dental record's date in step. */
 export async function updateProcedure(id: string, patch: ProcedurePatch): Promise<void> {
-  await db.transaction('rw', db.procedures, db.dental_records, async () => {
+  await writeTx([db.procedures, db.dental_records], async () => {
     const current = await db.procedures.get(id);
     if (!current || current.isDeleted) throw new Error('Procedure not found');
     const next = { ...current, ...patch };
@@ -114,7 +110,7 @@ export async function updateProcedure(id: string, patch: ProcedurePatch): Promis
 
 export async function addPayment(procedureId: string, input: PaymentInput): Promise<void> {
   validatePayment(input);
-  await db.transaction('rw', db.procedures, db.payments, async () => {
+  await writeTx([db.procedures, db.payments], async () => {
     const procedure = await db.procedures.get(procedureId);
     if (!procedure || procedure.isDeleted) throw new Error('Procedure not found');
     await createRow(db.payments, { procedureId, ...input, remarks: input.remarks.trim() });
@@ -131,7 +127,7 @@ export async function settleProcedures(
   input: Omit<PaymentInput, 'amountCents'>,
 ): Promise<{ count: number; totalCents: number }> {
   validatePayment({ ...input, amountCents: 1 });
-  return db.transaction('rw', db.procedures, db.payments, async () => {
+  return writeTx([db.procedures, db.payments], async () => {
     let count = 0;
     let totalCents = 0;
     for (const id of new Set(procedureIds)) {
@@ -154,10 +150,70 @@ export async function deletePayment(id: string): Promise<void> {
 
 /** Soft-deletes the procedure together with its payments, dental record and tooth entries. */
 export async function deleteProcedure(id: string): Promise<void> {
-  await db.transaction('rw', [db.procedures, db.payments, db.dental_records, db.tooth_entries], async () => {
+  await writeTx([db.procedures, db.payments, db.dental_records, db.tooth_entries], async () => {
     await softDeleteRow(db.procedures, id);
     for (const p of await db.payments.where('procedureId').equals(id).toArray()) await softDeleteRow(db.payments, p.id);
     for (const r of await db.dental_records.where('procedureId').equals(id).toArray()) await softDeleteRow(db.dental_records, r.id);
     for (const e of await db.tooth_entries.where('procedureId').equals(id).toArray()) await softDeleteRow(db.tooth_entries, e.id);
+  });
+}
+
+export interface ChartUpdateInput {
+  patientId: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  remarks: string;
+  teeth: ToothInput[];
+}
+
+function validateTeeth(teeth: ToothInput[]) {
+  const seen = new Set<number>();
+  for (const t of teeth) {
+    if (!isValidTooth(t.tooth)) throw new Error(`Tooth ${t.tooth} is not a valid FDI tooth`);
+    if (seen.has(t.tooth)) throw new Error(`Tooth ${t.tooth} listed twice`);
+    seen.add(t.tooth);
+  }
+}
+
+/**
+ * A chart update without a procedure: findings from an exam, work done elsewhere, or a correction.
+ * It is a dental record with no procedureId, replayed into the chart like any other record.
+ */
+export async function createChartUpdate(input: ChartUpdateInput): Promise<string> {
+  if (input.teeth.length === 0) throw new Error('Pick at least one tooth');
+  if (!DATE.test(input.date)) throw new Error('A valid date is required');
+  if (input.time && !TIME.test(input.time)) throw new Error('Time must look like 14:30');
+  validateTeeth(input.teeth);
+  return writeTx([db.patients, db.dental_records, db.tooth_entries], async () => {
+    const patient = await db.patients.get(input.patientId);
+    if (!patient || patient.isDeleted) throw new Error('A chart update needs an existing patient');
+    const record = await createRow(db.dental_records, {
+      patientId: input.patientId,
+      procedureId: null,
+      recordedAt: recordedAtOf(input.date, input.time),
+      remarks: input.remarks.trim(),
+    });
+    for (const t of input.teeth) {
+      await createRow(db.tooth_entries, {
+        recordId: record.id,
+        patientId: input.patientId,
+        procedureId: null,
+        tooth: t.tooth,
+        condition: t.condition,
+        remarks: t.remarks.trim(),
+      });
+    }
+    return record.id;
+  });
+}
+
+/** Soft-deletes a chart update (a dental record with no procedure) and its tooth entries. */
+export async function deleteChartUpdate(recordId: string): Promise<void> {
+  await writeTx([db.dental_records, db.tooth_entries], async () => {
+    const record = await db.dental_records.get(recordId);
+    if (!record || record.isDeleted) throw new Error('Chart update not found');
+    if (record.procedureId) throw new Error('This chart entry belongs to a procedure; delete the procedure instead');
+    await softDeleteRow(db.dental_records, recordId);
+    for (const e of await db.tooth_entries.where('recordId').equals(recordId).toArray()) await softDeleteRow(db.tooth_entries, e.id);
   });
 }

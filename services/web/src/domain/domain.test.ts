@@ -226,6 +226,10 @@ test('contact links: call, email, Messenger; plain "other" details have none', a
   assert.deepEqual(contactLink({ type: 'messenger', value: 'm.me/ana.cruz' }), { href: 'https://m.me/ana.cruz', newTab: true });
   assert.deepEqual(contactLink({ type: 'messenger', value: '@ana.cruz' }), { href: 'https://m.me/ana.cruz', newTab: true });
   assert.equal(contactLink({ type: 'other', value: 'Ask the guard' }), null);
+  // links only go where the contact type says
+  assert.equal(contactLink({ type: 'messenger', value: 'https://evil.example/login' }), null);
+  assert.deepEqual(contactLink({ type: 'messenger', value: 'https://www.facebook.com/ana' }), { href: 'https://www.facebook.com/ana', newTab: true });
+  assert.equal(contactLink({ type: 'email', value: 'ana@example.com?bcc=spy@example.com' }), null);
 });
 
 test('phone search: "0917…", digits only, or with the country code', async () => {
@@ -235,4 +239,12 @@ test('phone search: "0917…", digits only, or with the country code', async () 
   const text = contactSearchText({ type: 'phone', value: '+63 917 555 0101' });
   for (const q of ['0917 555', '09175550101', '639175550101', '+63 917', 'ana 0917']) assert.equal(matchesPatient(p, text, q), true, q);
   assert.equal(contactSearchText({ type: 'email', value: 'a@b.co' }), 'a@b.co');
+});
+
+test('photo framing: the crop square follows the centre and zoom, and never leaves the image', async () => {
+  const { cropRect } = await import('../services/photoService');
+  assert.deepEqual(cropRect(400, 200, { cx: 0.5, cy: 0.5, zoom: 1 }), { x: 100, y: 0, side: 200 }); // centred square
+  assert.deepEqual(cropRect(400, 200, { cx: 0, cy: 0.5, zoom: 1 }), { x: 0, y: 0, side: 200 }); // pushed past the left edge
+  assert.deepEqual(cropRect(400, 200, { cx: 1, cy: 0.5, zoom: 1 }), { x: 200, y: 0, side: 200 });
+  assert.deepEqual(cropRect(400, 200, { cx: 0.25, cy: 0.25, zoom: 2 }), { x: 50, y: 0, side: 100 }); // zoomed in
 });

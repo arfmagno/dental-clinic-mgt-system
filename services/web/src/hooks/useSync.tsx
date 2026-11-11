@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../data/db';
 import { ApiError } from '../services/api';
-import { disconnectFromServer, getToken } from '../services/session';
+import { disconnectFromServer, getStaffToken, getToken, setStaffToken, syncToken } from '../services/session';
 import { pendingCount, syncOnce } from '../services/syncEngine';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'auth';
@@ -29,6 +29,14 @@ export const useSync = () => {
 };
 
 const OFFLINE_KEY = 'clinic.offlineMode';
+/** Turns sync on for when the provider mounts: used when a new device joins a clinic during setup. */
+export function rememberSyncOn() {
+  try {
+    localStorage.setItem(OFFLINE_KEY, '0');
+  } catch {
+    /* ignore */
+  }
+}
 const LAST_SYNC_KEY = 'lastSyncAt';
 const safeGet = (k: string) => {
   try {
@@ -73,18 +81,22 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const syncNow = useCallback(async () => {
-    const token = getToken();
+    const token = syncToken();
     if (running.current) return;
     if (!token) return void setStatus('auth');
     running.current = true;
     setStatus('syncing');
     try {
-      await syncOnce(token);
+      const outcome = await syncOnce(token);
       await db.meta.put({ key: LAST_SYNC_KEY, value: new Date().toISOString() });
-      setLastError(null);
+      // Rows the server refused stay on this device (and are retried); say why.
+      setLastError(outcome.problems[0] ?? null);
       setStatus('idle');
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
+      if (err instanceof ApiError && err.status === 401 && getStaffToken()) {
+        setStaffToken(null); // the staff session expired: carry on as the device
+        setStatus('idle');
+      } else if (err instanceof ApiError && err.status === 401) {
         disconnectFromServer(); // keep working locally; ask to connect again
         setStatus('auth');
       } else {

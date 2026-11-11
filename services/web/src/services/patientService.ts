@@ -1,7 +1,8 @@
 import { DEFAULT_CITIZENSHIP, DEFAULT_COUNTRY, DENTAL_CLASSIFICATIONS, formatPhone, parsePhone, type ContactType, type Patient } from '@clinic/shared';
 import type { Table } from 'dexie';
 import { db, type Local } from '../data/db';
-import { createRow, softDeleteRow, updateRow } from '../data/repository';
+import { createRow, softDeleteRow, updateRow, writeTx } from '../data/repository';
+import { requireAdmin } from './staffService';
 
 export type PatientFields = Omit<Patient, 'id' | 'createdAt' | 'updatedAt' | 'isDeleted'>;
 
@@ -28,7 +29,7 @@ export const emptyPatient = (): PatientFields => ({
   addressCountryCode: DEFAULT_COUNTRY,
   photo: '',
   remarks: '',
-  dentalClassification: '', // '' = suggest from age until the dentist chooses
+  dentalClassification: 'permanent', // Adult by default (owner's choice); '' = suggest from age
 });
 
 export const emptyContact = (isPrimary: boolean): ContactInput => ({ type: 'phone', value: '', label: '', isPrimary });
@@ -108,7 +109,7 @@ export async function savePatient(id: string | undefined, fields: PatientFields,
       })
       .filter((c) => c.value),
   );
-  return db.transaction('rw', db.patients, db.patient_contacts, async () => {
+  return writeTx([db.patients, db.patient_contacts], async () => {
     const patientId = id ?? (await createRow(db.patients, clean)).id;
     if (id) await updateRow(db.patients, id, clean);
 
@@ -120,6 +121,8 @@ export async function savePatient(id: string | undefined, fields: PatientFields,
 }
 
 /** Soft delete. Procedures, payments and records stay in the database (and remain recoverable). */
+/** Admin only. A soft delete: the patient's records stay (and sync) but are no longer shown. */
 export async function deletePatient(id: string): Promise<void> {
-  await softDeleteRow(db.patients, id);
+  await requireAdmin();
+  await writeTx(db.patients, () => softDeleteRow(db.patients, id));
 }
