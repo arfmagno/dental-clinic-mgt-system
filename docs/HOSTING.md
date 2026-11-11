@@ -13,8 +13,8 @@ All configuration is environment-based; nothing else reads `process.env`.
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `NODE_ENV` | `development` | Set `production` when hosted. Production **refuses to start** without the two secrets below. |
-| `CLINIC_PASSWORD` | `clinic` (dev only) | The clinic server password: entered on a device when sync is switched on (and to reset a forgotten staff PIN). Required in production. |
-| `AUTH_SECRET` | dev value | Signs session tokens; 24+ random characters; required in production. Changing it disconnects every device from sync (they keep working offline until reconnected). |
+| `CLINIC_PASSWORD` | `clinic` (dev only) | The clinic server password: identifies a clinic *device* when sync is switched on (and resets the PIN of an offline-only device). Staff then sign in with their own PIN. Required in production. |
+| `AUTH_SECRET` | dev value | Signs device and staff tokens; 24+ random characters; required in production. Changing it disconnects every device from sync (they keep working offline until reconnected). |
 | `DATABASE_URL` | `sqlite:<DATA_DIR>/clinic.db` | `sqlite:` today; `postgres://` is reserved (see Architecture). |
 | `DATA_DIR` | `data` | Folder for the database. **Put this on a persistent volume.** |
 | `BACKUP_DIR` | `<DATA_DIR>/backups` | Pre-migration snapshots. |
@@ -22,7 +22,7 @@ All configuration is environment-based; nothing else reads `process.env`.
 | `WEB_DIR` | `../web/dist` | Built web app to serve. Empty = API only. |
 | `TRUST_PROXY` | `false` | Set `true` behind a reverse proxy/PaaS so login throttling sees real client IPs. |
 | `CORS_ORIGIN` | empty | Only if the web app is hosted on a different origin; also build the web app with `VITE_API_URL`. **Not needed for the Windows desktop app** (it forwards API calls itself). |
-| `TOKEN_TTL_DAYS` | `30` | How long a device stays connected for sync before it must enter the server password again (the app keeps working offline). |
+| `TOKEN_TTL_DAYS` | `30` | How long a device stays connected for sync before it must enter the server password again (the app keeps working offline). Staff tokens last 12 hours. |
 | `LOG_LEVEL` | `info` | |
 
 Generate a secret: `openssl rand -hex 32` (or any password manager).
@@ -55,17 +55,25 @@ Double-click `start-clinic.bat` (Windows, Node.js 20+ installed). It installs an
 1. On the build machine: `npm install`, then `npm run dist:desktop`. The result is `services/desktop/release/Magno-Dental-Clinic-Setup-<version>.exe` (about 120 MB). The first build downloads Electron and NSIS.
 2. Copy the `.exe` to each clinic computer and run it. It installs for the current Windows user (no administrator rights) and adds **Magno Dental Clinic** to the Start menu and the desktop. The installer is not code-signed, so SmartScreen may show *Windows protected your PC*: choose *More info → Run anyway*.
 3. Open it from the shortcut and create the staff PIN. It works with no network.
-4. To sync, open the Sync chip, switch sync on, and enter the **clinic server address** (for example `192.168.1.10:3001` on the clinic network, or `https://clinic.example.com`) and the server password. Plain `http://` is accepted for a server on the clinic LAN; use `https://` over the internet.
+4. To sync, open **Settings → Sync** (gear, top right), switch sync on, and enter the **clinic server address** (for example `192.168.1.10:3001` on the clinic network, or `https://clinic.example.com`) and the server password. Plain `http://` is accepted for a server on the clinic LAN; use `https://` over the internet.
 5. To update, run the newer installer. Data is kept; it lives in the Windows user profile (`%APPDATA%Dental Clinic`).
 
 ### Browser install (PWA): any device
 
-Open the hosted address in Chrome or Edge, create the staff PIN, then **Install**. Switch on sync from the Sync chip to connect the device to the server. On Android use *Add to Home screen*; on iPhone/iPad use *Share → Add to Home Screen*. After that it opens offline from its own icon.
+Open the hosted address in Chrome or Edge, create the staff PIN, then **Install**. Switch on sync in Settings → Sync to connect the device to the server. On Android use *Add to Home screen*; on iPhone/iPad use *Share → Add to Home Screen*. After that it opens offline from its own icon.
+
+## Staff accounts
+
+- The first device sets up the clinic: it creates a staff PIN for the shared *Clinic staff* account (an admin). Switch sync on there, then add people under **Settings → Staff**.
+- Other devices choose **Join your clinic** on first launch (server address on Windows, then the server password), which downloads records and accounts.
+- The server accepts changes to staff accounts only from an admin signed in with their own PIN. A device that was set up offline and later joined has its own *Clinic staff* account refused until an admin signs in on it while online.
+- **Nobody with an admin account can sign in?** On the server: `npm run reset-pin -w @clinic/server -- "<name>" <new PIN>` (in Docker: `docker exec clinic node --import tsx services/api/scripts/reset-pin.ts "<name>" <new PIN>`). Devices pick the new PIN up on their next sync.
+- Deactivate people who leave; their activity history stays. See [SECURITY.md](SECURITY.md) for what the accounts protect against and what they do not.
 
 ## Backups
 
 - **Server database:** back up the `/data` volume (the file `clinic.db`, plus `clinic.db-wal` if present) on a schedule, or use your host's volume snapshots. The server also writes a snapshot before every schema migration to `BACKUP_DIR`.
-- **Devices** hold a full copy of the data too; once synced they are an additional safety net. Patient data that has *not yet synced* exists only on that device. Keep an eye on the Sync chip's pending count and avoid clearing browser data while it is above zero.
+- **Devices** hold a full copy of the data too; once synced they are an additional safety net. Patient data that has *not yet synced* exists only on that device. Keep an eye on the waiting count in Settings → Sync and avoid clearing browser data while it is above zero. **Settings → Backup → Export all data** saves a device's records to a file encrypted with a passphrase (works offline); keep the passphrase apart from the files. **Restore from a backup** on the same page merges a file back in: missing records are added and only older copies are replaced.
 
 ## Upgrading
 
@@ -78,5 +86,7 @@ Open the hosted address in Chrome or Edge, create the staff PIN, then **Install*
 - [ ] Strong `CLINIC_PASSWORD`; unique 64-hex `AUTH_SECRET`
 - [ ] HTTPS only
 - [ ] Persistent, backed-up `/data`
-- [ ] Devices that use the app are protected by their own login/screen lock (local data is not separately encrypted)
+- [ ] Devices that use the app are protected by their own login/screen lock and disk encryption (local data is not separately encrypted)
+- [ ] Each person has their own staff account; deactivate it when they leave
 - [ ] Only share the password with staff; rotate it when someone leaves (change `AUTH_SECRET` too to end all sessions)
+- [ ] The full list: [SECURITY.md](SECURITY.md#operating-checklist-for-the-clinic)

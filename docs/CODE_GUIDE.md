@@ -9,6 +9,10 @@ A map of the code and recipes for common changes. Read [ARCHITECTURE.md](ARCHITE
 | `npm run dev` | API (`:3001`, auto-restart) + web dev server (`:5173`, proxies `/api`) |
 | `npm run typecheck` | `tsc --noEmit` in every workspace and the e2e folder |
 | `npm test` | Server tests (domain rules, migrations, sync, security) + web domain tests |
+| `npm run coverage` | Web unit tests with coverage (v8); fails below the floor in `services/web/vitest.config.ts` |
+| `npm run e2e` | Build, start the real server on :3155 and run Playwright (includes axe accessibility checks) |
+| `npm run lighthouse` | Lighthouse audit of the production build (run `npm run build` first); fails below the score floors |
+| `npm run reset-pin -w @clinic/server -- "<name>" <PIN>` | Operator reset of a staff PIN in the server database |
 | `npm run build` | Typecheck + production web build with service worker (`services/web/dist`) |
 | `npm start` | Run the server (serves `services/web/dist` if built) |
 | `npm run migrate -w @clinic/server` | Apply pending migrations without starting the server |
@@ -25,19 +29,22 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `infrastructure/db/driver.ts` | The `SqlDriver` / `SqlExecutor` interfaces and the portable-SQL rules |
 | `infrastructure/db/sqlite.ts` | SQLite adapter. Serialises access with a mutex so a transaction is never interleaved with other requests; nested transactions are savepoints |
 | `infrastructure/db/open.ts` | Picks the adapter from `DATABASE_URL` |
-| `infrastructure/auth/tokens.ts` | `TokenSigner`: HMAC-SHA256 signed expiring tokens |
+| `infrastructure/auth/tokens.ts` | `TokenSigner`: HMAC-SHA256 signed expiring tokens (payload carries `kind`: device or staff) |
+| `infrastructure/auth/pin.ts` | `pinMatches`: verifies a staff PIN against the synced PBKDF2 hash (bounded iterations, constant time) |
+| `domain/staffPolicy.ts` | `staffWriteError`: who may change which staff row (bootstrap, admin staff token, own PIN) |
+| `staffAdmin.ts` | `resetStaffPin`: used by `scripts/reset-pin.ts` |
 | `migrate.ts` | Migration runner (ordering by version, refuses out-of-order, transactions, backup, FK check, `backfill`/`insert`) |
 | `migrate-cli.ts` | `npm run migrate` entry point |
 | `migrations/` | Migration files `<UTC YYYYMMDDHHmmss>-<kebab>.sql` or `.ts` (the baseline `20261110090000-initial-schema.sql`); `index.ts` (file-name rules, `checkMigrationFiles`, `loadMigrations`, `LEGACY_VERSIONS`); `generate.ts` (new names and templates); `types.ts` |
 | `seed.ts` | `seedDemo` / `unseedDemo`: shared sample data written through `SyncService.push` |
-| `scripts/` | `new-migration.ts` (`npm run migration:new`), `check-migrations.ts` (part of `npm run lint`), `seed.ts` (`npm run seed`) |
-| `repositories/syncRepository.ts` | `nextSeq`, `upsertIfNewer` (atomic last-write-wins), `changedSince`, `ping` |
+| `scripts/` | `new-migration.ts` (`npm run migration:new`), `check-migrations.ts` (part of `npm run lint`), `seed.ts` (`npm run seed`), `reset-pin.ts` (`npm run reset-pin`) |
+| `repositories/syncRepository.ts` | `nextSeq`, `upsertIfNewer` (atomic last-write-wins), `changedSince`, `get`, `countSignInStaff`, `ping` |
 | `domain/authorization.ts` | `Role`, `Permission`, `ROLE_PERMISSIONS`, `Principal`, `isRole`, `can` |
 | `domain/syncRow.ts` | `acceptIncomingRow`: envelope checks, unknown columns dropped, column rules, clock clamp (`MAX_CLOCK_SKEW_MS`) |
 | `domain/errors.ts` | `ValidationError` (→ 400), `AuthError` (→ 401/429) |
 | `domain/domain.test.ts` | Unit tests for the domain rules |
-| `services/syncService.ts` | `push` (domain row rules, per-row savepoints, dependency order) and `pull` (paged global change feed) |
-| `services/authService.ts` | `AuthProvider` port, `PasswordAuthProvider`, `LoginThrottle`, `AuthService` |
+| `services/syncService.ts` | `push(principal, req)` (domain row rules, staff policy, append-only audit log, per-row savepoints, dependency order; `TRUSTED` for server scripts) and `pull` (paged global change feed) |
+| `services/authService.ts` | `AuthProvider` port, `PasswordAuthProvider`, `LoginThrottle`, `AuthService` (`login` for devices, `staffLogin` for people) |
 | `http/app.ts` | `buildApp(deps)`: wiring only (middlewares → routes under `/api/v1` → web app) |
 | `http/middlewares/` | `securityHeaders.ts`, `authGate.ts` (**default-deny**, `RouteAuth`, `req.principal`), `errorHandler.ts` (domain errors → status codes) |
 | `http/validators/` | `auth.schema.ts`, `sync.schema.ts`: JSON schemas + request types |
@@ -58,23 +65,27 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `domain/search.ts` | `matchesPatient` (accent-insensitive, every word must match), `contactSearchText` (phones also as "0917…" and digits) |
 | `domain/contact.ts` | `contactLink`: `tel:` / `mailto:` / Messenger link for a contact (Transactions' Contact button) |
 | `domain/paging.ts` | `paginate`, `groupStartPages` (A–Z bar), `pageWindow` |
+| `domain/reports.ts` | `buildReport(data, period, today)`: collected/billed/outstanding, collection buckets, top procedures, methods, aging |
 | `services/patientService.ts` | `savePatient` (patient + contacts atomically, one primary contact; address country kept only with an address line), `validatePatient` (names, DOB not in the future, citizenship), `deletePatient` |
-| `services/procedureService.ts` | `createProcedure` (procedure + dental record + tooth entries + optional first payment in one transaction), update, `addPayment`, `settleProcedures` (each record in full, one transaction), `deletePayment`, cascade delete |
+| `services/procedureService.ts` | `createProcedure` (procedure + dental record + tooth entries + optional first payment in one transaction), update, `addPayment`, `settleProcedures` (each record in full, one transaction), `deletePayment`, cascade delete; `createChartUpdate` / `deleteChartUpdate` (chart changes with no procedure) |
 | `services/pinService.ts` | Staff PIN: PBKDF2 hash, verify with back-off, session unlock flag, patient-mode flag |
 | `services/theme.ts` | Light (default) / dark → `html[data-theme]` |
 | `services/syncEngine.ts` | `syncOnce`: push dirty rows in batches, then pull pages; LWW rules |
-| `services/session.ts` | Sync token: `connectToServer(password)`, `disconnectFromServer()` |
+| `services/session.ts` | Device token (`connectToServer`, `disconnectFromServer`) and staff token (`signInStaffOnline`, kept in sessionStorage); `syncToken()` prefers the staff token |
+| `services/staffService.ts` | Staff accounts: create, update, reset PIN, deactivate, sign-in with back-off; `requireAdmin`; `SHARED_ACCOUNT_NAME` |
+| `services/features.ts` | Feature switches on the device (`useFeature('reports')`) |
 | `services/api.ts` | `fetch` wrapper; `ApiError` (`status 0` = offline) |
 | `services/desktop.ts` | `desktop` bridge (only in the Windows app): read/save the clinic server address |
-| `services/demoService.ts` | `loadDemoData` / `removeDemoData` (dashboard sample-data tools), `demoToolsEnabled` |
+| `services/backupService.ts` | `buildBackup` (every row of every table, no `dirty`), `downloadBackup` (JSON file), `lastBackupAt`, `parseBackup` (format + every row checked with `validateColumns`), `restoreBackup` (admin only; merge, last-write-wins on `updatedAt`, rows marked dirty, no new staff accounts); `encryptBackup` / `decryptBackup` (AES-256-GCM, PBKDF2 passphrase), `readBackupFile` |
 | `services/photoService.ts` | Validate (≤10 MB), resize (≤640 px), JPEG re-encode to ≈70 KB |
 | `services/pdfService.ts` | Styled PDF (jsPDF) with anatomical chart, address, nationality, payments; loaded lazily |
 | `hooks/useData.ts` | Live queries: summaries, search index (contacts + address), patient bundle, procedures, activity |
-| `hooks/useLock.tsx` | `LockProvider`: stages `setup → locked → open ⇄ patient`; create/verify/reset PIN |
+| `hooks/useLock.tsx` | `LockProvider`: stages `loading → setup → locked → open ⇄ patient`; `accounts` (sync token or more than one account), sign in, create the first admin, reset PIN |
 | `hooks/useSync.tsx` | `SyncProvider`: offline by default, auto-sync when on (start, reconnect, every 30 s, 1.5 s after edits) |
 | `domain/classification.ts` | `classificationOf(patient)`: the dentist's dental classification, or the age suggestion |
-| `components/` | `Odontogram`, `DentalChart` (only the classification's chart(s)), `Feedback` (`useFeedback().confirm/notify`: in-app dialogs and notifications; never use `window.confirm/alert`), `Icon`, `ProcedureForm`, `PatientForm`, `ContactsEditor`, `CountrySelect`, `NationalitySelect`, `ProcedureTypeField` (list + "Other" text), `PaymentForm`, `PinForm`, `PhotoPicker`, `PatientPicker`, `ThemeToggle`, `Modal`, `Layout` (top nav; bottom tab bar + Add sheet on phones), `SyncChip` |
-| `pages/` | `Dashboard`, `Patients`, `PatientNew`, `PatientDetail`, `AddProcedure` (Add Record), `Records`, `Transactions` (settle one or many), `Connect`, `LockScreens` (`SetupPin`, `Unlock`, `PatientMode`) |
+| `components/` | `Odontogram`, `DentalChart` (only the classification's chart(s)), `Feedback` (`useFeedback().confirm/notify`: in-app dialogs and notifications; never use `window.confirm/alert`), `Icon`, `ProcedureForm`, `TeethPicker` (tap teeth, set condition and remarks; shared by `ProcedureForm` and `ChartUpdateForm`), `ChartUpdateForm`, `PatientForm`, `ContactsEditor`, `CountrySelect`, `NationalitySelect`, `ProcedureTypeField` (list + "Other" text), `PaymentForm`, `PinForm`, `PhotoPicker`, `PatientPicker`, `ThemeToggle` (lock screen), `Activity` (`RecentActivity` for the dashboard, `ActivityLog` for Settings), `Modal`, `Layout` (top nav, sync chip and Settings gear; bottom tab bar + Add sheet on phones), `SyncChip` (status link) and `SyncSettings` |
+| `components/` (staff, reports, paging) | `StaffSettings` (`AccountSection`, `StaffSection`), `ReportCharts` (`ColumnChart` with table view, `BarList`), `Pager` / `PageRange` |
+| `pages/` | `Reports` (with `ReportSummary` for the dashboard), `Dashboard`, `Patients`, `PatientNew`, `PatientDetail`, `AddProcedure` (Add Record), `Records`, `Transactions` (patients with a balance; settle one or many), `Settings` (activity log, preferences, sync, backup; `?tab=`), `Connect`, `LockScreens` (`SetupPin`, `Unlock`, `PatientMode`) |
 | `domain/procedureType.ts` | `splitProcedureType` / `resolveProcedureType`: stored type to list choice + "Other" text and back |
 | `**/*.test.ts(x)` | Vitest: `domain/domain.test.ts` (pure logic), `services/services.test.ts` (services on fake IndexedDB), `components/components.test.tsx`, `components/feedback.test.tsx` (pop-ups, Transactions), `pages/Connect.test.tsx`; setup in `test/setup.ts` |
 
@@ -143,7 +154,11 @@ See "Recipe: add a new table" in [MIGRATIONS.md](MIGRATIONS.md).
   - patients, procedures and payments;
   - sync/offline and PDF export;
   - phone layout, layout overflow at every width, contacts and lists;
+  - staff sign-in, pagination, reports;
+  - accessibility: axe (WCAG 2.1 AA) on the lock screens and every page in light and dark;
   - the packaged desktop `.exe` (skipped until `npm run dist:desktop` has been run).
 
   One worker; each test gets a fresh browser profile.
+- **Coverage:** `npm run coverage` measures the web services, domain and data layers; CI fails below the floor.
+- **Lighthouse:** `npm run lighthouse` audits the production build served by the real server.
 - **Lint:** `npm run lint` (oxlint, `.oxlintrc.json`). typescript-eslint does not support TypeScript 7 yet, and oxlint needs no TypeScript runtime.

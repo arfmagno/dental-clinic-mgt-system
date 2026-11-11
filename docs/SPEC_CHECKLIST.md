@@ -13,6 +13,8 @@ Every requested item, where it lives, and how it was verified. **Unit** = automa
 | Patients view: search, edit, soft delete, multiple contacts, PDF | `pages/Patients.tsx`, `pages/PatientDetail.tsx`, `services/pdfService.ts` | E2E, Visual (PDF) |
 | Add patient: photo capture/upload, compressed, stored locally | `components/PhotoPicker.tsx`, `services/photoService.ts` | Upload path in v0.1.0 E2E; **camera not tested** |
 | Add procedure: patient required; creates a dental record | `components/ProcedureForm.tsx`, `services/procedureService.ts` | E2E |
+| Edit the dental chart without a procedure | `components/ChartUpdateForm.tsx`, `services/procedureService.ts` (`createChartUpdate`) | Unit, E2E |
+| Dashboard: highlighted actions and recent activity; the full log in Settings | `pages/Dashboard.tsx`, `components/Activity.tsx`, `hooks/useData.ts` (`useActivity`) | E2E |
 | Procedure date/time default to now, editable for past records | `ProcedureForm.tsx` | E2E |
 | Records: sortable table | `pages/Records.tsx` | E2E |
 | Dashboard: recent actions, quick links | `pages/Dashboard.tsx` | E2E |
@@ -55,7 +57,23 @@ Every requested item, where it lives, and how it was verified. **Unit** = automa
 | 8 | Linting | oxlint, `.oxlintrc.json`, `npm run lint` | Runs clean (0 warnings) |
 | 9 | Tests everywhere: frontend, backend, integration, e2e | Server 23, web 39 (domain, IndexedDB integration, upgrades, components), desktop 4, Playwright 16 | All pass |
 | 10 | Bundled app opened from a shortcut | PWA install (unchanged) **and** Windows installer `services/desktop` | E2E drives the packaged `.exe` (offline, data kept across launches, sync through the forwarder); installer built. Installing via the NSIS wizard was **not** run in automation |
-| 11 | Dummy data to examine the app | `shared/demo.ts`, dashboard *Load sample data*, `npm run seed` | Unit (valid, consistent, deterministic), Integration (load/remove), E2E (list with 60 patients) |
+| 11 | Dummy data to examine the app | `shared/demo.ts`, `npm run seed` (server); no button in the app | Unit (valid, consistent, deterministic), E2E (list with 60 patients, loaded by the test helper) |
+| 12 | Settings: full activity log, dark mode, sync, local backup | `pages/Settings.tsx`, `components/Activity.tsx`, `services/backupService.ts` | Unit (backup), E2E |
+| 13 | Dashboard: Settle Balances, recent activity only | `pages/Dashboard.tsx`, `pages/Transactions.tsx` (patients with a balance) | E2E |
+
+## Change request (v0.4.0: staff accounts, reports, portfolio)
+
+| # | Request | Where | Verified |
+| --- | --- | --- | --- |
+| 1 | Staff accounts with an audit trail | `services/staffService.ts`, `components/StaffSettings.tsx`, `audit_log` via `data/repository.ts` (`writeTx`), `components/Activity.tsx` | Unit, E2E (add staff, sign in by name, activity *by Name*) |
+| 2 | Accounts only when the device syncs; offline-only keeps the shared PIN | `hooks/useLock.tsx` (`accounts`), `components/PinForm.tsx` | Unit, E2E |
+| 3 | Security to standard: server-side staff policy, append-only audit, staff tokens | `domain/staffPolicy.ts`, `services/syncService.ts`, `POST /auth/staff` | Unit (server 30 tests: bootstrap, admin token, own PIN only, device token refused, audit rewrite refused, reset-pin) |
+| 4 | Encrypted backups | `services/backupService.ts` | Unit (round trip, wrong passphrase, tampering), E2E (export and restore) |
+| 5 | Security write-up | [SECURITY.md](SECURITY.md) | Review |
+| 6 | Reports, off by default | `domain/reports.ts`, `pages/Reports.tsx`, `services/features.ts` | Unit, E2E (hidden by default, switch on, periods, table view) |
+| 7 | Pagination on Records and Transactions | `components/Pager.tsx`, `pages/Records.tsx`, `pages/Transactions.tsx` | E2E |
+| 8 | Quality signals | axe in `e2e/a11y.spec.ts`, `npm run coverage`, `npm run lighthouse`, CI | axe: 0 violations; coverage ≈85% statements; Lighthouse 95/100/100/100 |
+| 9 | Public demo, README with screenshots, release | `services/web/src/services/demo.ts`, `DemoBanner.tsx`, `demo.yml`, `README.md` | Demo build driven in Edge under `/dental-clinic-mgt-system/` (sample data, deep link, banner, reset); secret scan of the whole git history |
 
 ## Design decisions recorded
 
@@ -64,6 +82,9 @@ Every requested item, where it lives, and how it was verified. **Unit** = automa
 | Folder names | `services/api`, `services/web`, `shared/` | Asked, chosen by the owner |
 | Normalization scope | Address table, payments table, tooth catalog; **no** lookup tables for short lists | Asked; the owner pointed out lookup tables would be redundant |
 | Unlock / sign-in | One local PIN for opening the app and leaving patient mode; server password only to switch on sync (and to reset the PIN) | Asked, chosen by the owner |
+| Staff accounts | Per-person accounts only on devices that sync; offline-only devices keep one shared PIN | Asked, chosen by the owner ("Accounts only with sync") |
+| Dental classification default | Adult (permanent teeth) for new patients; *By age* still available | Asked, chosen by the owner |
+| Reports | Built, but off by default | Asked; the clinic does not want to see reports |
 | Grouping letter | Last name | Default, see release notes |
 | Page size | 25 | Default |
 | Primaries | Exactly one primary contact | Default |

@@ -2,6 +2,31 @@
 
 Written for the clinic. The technical list is in [CHANGELOG.md](../CHANGELOG.md).
 
+## Version 0.4.0 (2026-11-12)
+
+### What's new
+
+- **Settings** (gear, top right): the full activity log, preferences (dark mode), sync and backups, all in one place.
+- **Transactions:** pick a patient to see what they owe, settle one record or several at once, and see their payment history. **Settle Balances** on the dashboard lists everyone who owes, largest first.
+- **Update chart** on a patient's page records exam findings or work done elsewhere, with no charge.
+- **Dental classification** (pediatric, mixed or adult) per patient, so only the right chart is shown.
+- **Phone layout** with a bottom tab bar, and **country codes** for phone numbers (Philippines first).
+- **Everyone signs in as themselves** on computers and tablets connected to the clinic server: tap your name, enter your own PIN. The activity log then shows who did what.
+  - A device that never connects to the server keeps one shared PIN, as before.
+  - Admins add and manage staff under **Settings → Staff**. Everyone can change their own PIN under **Settings → Account**.
+  - A new device can choose **Join your clinic** the first time it opens, to download the records and staff accounts.
+- **Backups are locked with a passphrase.** Choose one when you export (at least 8 characters) and keep it somewhere other than the backup file. Without it the file cannot be opened.
+- **Reports** for the owner, hidden unless switched on in **Settings → Preferences**: money collected, unpaid balances and how old they are, most common procedures and payment methods, for the last 30 days, 90 days or 12 months.
+- **Records and Transactions are split into pages**, so long lists stay quick.
+
+### Changed behaviour
+
+- **New patients are Adult (permanent teeth) by default.** For a child, choose *Pediatric*, *Mixed* or *By age* when adding or editing the patient.
+- The clinic's **outstanding balance** is now at the top of **Transactions** instead of Records.
+- The **activity list** is easier to scan: each kind of action has its own icon, and names and times line up.
+- Only an **admin** can delete a patient or restore a backup.
+- **Forgot your PIN?** Ask an admin to reset it in Settings → Staff.
+
 ## Version 0.3.0 (2026-11-11)
 
 ### What's new
@@ -10,7 +35,6 @@ Written for the clinic. The technical list is in [CHANGELOG.md](../CHANGELOG.md)
   - The first time you connect, type the clinic server's address (for example `192.168.1.10:3001`) and the server password.
   - Installing from the browser (Chrome or Edge → *Install*) still works too.
 - **"Other" procedures:** choosing *Other* opens a box where you type what was done (for example *Gum treatment*). That name is what appears on the record and the PDF.
-- **Sample data for trying things out:** in a test copy, open the dashboard with `?demo` at the end of the address. Choose **Load sample data** for about 60 made-up patients with visits, payments and charts, and **Remove sample data** to delete them again. Real patients are never touched.
 
 ### Changed behaviour
 

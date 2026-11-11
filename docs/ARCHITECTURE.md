@@ -83,6 +83,7 @@ Design decisions worth knowing:
 - **Balances are derived from payments:** `balance = costCents − Σ payments.amountCents`. A procedure can have any number of payments (part payments, different methods).
 - **The chart is derived, not stored.** A patient's current teeth state is "the latest `tooth_entries` per tooth, replaying dental records oldest→newest". That gives full history for free ("view chart at this point"), makes backdated records correct (ordering is by the record's own date/time, not when it was typed), and avoids conflicting writes to a single mutable chart row when two devices sync.
 - **Creating a procedure always creates a dental record** (and its tooth entries) in one local transaction (`services/procedureService.ts`), so chart and history cannot drift apart.
+- **The chart can also change without a procedure** ("Update chart": exam findings, work done elsewhere, corrections). `createChartUpdate` writes a dental record with `procedureId = null` plus its tooth entries; it replays into the chart like any other record and is deleted with `deleteChartUpdate`. The dashboard lists these as "Chart" actions.
 - **Last visit and outstanding balance are computed** from procedures, never stored, so they cannot go stale.
 - **Age is computed** from `birthDate`.
 - **Conditions** are: healthy, cavity, filled ("cavity filled"), missing, extracted, impacted, root canal, crown.
@@ -117,14 +118,17 @@ An Electron shell around the same web build, packaged by electron-builder into a
 - **Data** lives in the Electron profile of the Windows user (IndexedDB). Uninstalling keeps it unless the user deletes the app-data folder.
 - **Updates** are a new installer for now (no auto-update channel, and the installer is not code-signed).
 
-**Opening the app needs no server.** On first launch staff create a **local PIN** (4–6 digits, stored as a salted PBKDF2 hash on the device, with back-off after 5 wrong tries). The PIN opens each new session and is the only way out of *patient mode*. **Sync is off by default**; switching it on asks once for the clinic server password, which returns the sync token. If the token expires or is revoked the app switches back to offline and keeps working. A forgotten PIN is reset by proving the server password (online), and local records are kept.
+**Opening the app needs no server.** On first launch staff create a **staff PIN** (4–6 digits, a salted PBKDF2 hash with back-off after 5 wrong tries). That PIN belongs to one shared account ("Clinic staff", an admin), which is all an offline-only device needs. **Sync is off by default**; switching it on asks once for the clinic server password, which returns the device's sync token. If the token expires or is revoked the app switches back to offline and keeps working.
+
+**Staff accounts (devices that sync).** Once a device syncs, or has more than one account, sign-in becomes *pick your name, enter your own PIN*. Accounts are rows of the synced `staff` table, so a person can sign in on any clinic device, offline included. Admins manage them under Settings → Staff. Every change to an audited table also writes an `audit_log` row naming the signed-in person, in the same transaction. Signing in while online also exchanges the PIN for a short-lived **staff token**; the server accepts staff-account changes only with an admin's staff token. A forgotten PIN is reset by an admin (or, if no admin can sign in, by the server operator with `npm run reset-pin`). On an offline-only device it can still be reset by proving the server password. Details and limits: [SECURITY.md](SECURITY.md).
 
 ### Lock stages (`hooks/useLock.tsx`)
 
 | Stage | Shown | Leaves by |
 | --- | --- | --- |
-| `setup` | Create PIN | Creating a PIN |
-| `locked` | PIN screen | Correct PIN |
+| `loading` | Nothing (reading the accounts) | Accounts loaded |
+| `setup` | Create a staff PIN, or *Join your clinic* (download records and accounts from the server) | Creating the PIN, or joining |
+| `locked` | PIN screen (offline-only device) or *Who is signing in?* (accounts) | Correct PIN |
 | `patient` | Registration form only (no navigation, records or balances); survives reload | Correct PIN ("Staff unlock") |
 | `open` | Full staff app | Lock → *Hand to patient* or *Lock app* |
 
@@ -133,14 +137,16 @@ Patients are **not** isolated by default; staff enter patient mode only with the
 ## Security model
 
 - **Default deny.** Every `/api` route must declare its protection (`public`, `any`, or a specific permission) in its route config. A route that declares nothing returns 403, so a forgotten check cannot expose data.
-- **Authentication is a port** (`AuthProvider`). Today: one shared clinic password (constant-time compare of hashes). Replace with user accounts, magic links or OIDC by implementing the interface; nothing else changes.
+- **Authentication is a port** (`AuthProvider`). The shared clinic password authenticates a *device* (constant-time compare of hashes). A staff member then signs in with their own PIN (`POST /auth/staff`, checked against the server's copy of their hash) for a 12-hour *staff* token. Replace either with OIDC or similar by implementing the interface.
+- **Staff accounts are guarded on the server** (`domain/staffPolicy.ts`): after the first account, only an admin signed in with their own PIN may change accounts; staff may change only their own PIN. The audit log is append-only.
 - **Authorization is permission-based.** Roles (`admin`, `staff`, `patient`) are bundles of permissions in `ROLE_PERMISSIONS`; handlers never test roles. The `patient` role deliberately has no `sync:*` permission (see roadmap).
 - Signed (HMAC-SHA256), expiring bearer tokens; tampered, forged, expired and wrong-role tokens are tested.
 - Login throttling (8 failures / 15 min per client), identical error for every failure cause.
 - Strict JSON-schema input validation, 25 MB body limit, security headers (CSP, `nosniff`, `X-Frame-Options`, HSTS in production, camera-only permissions policy), `Cache-Control: no-store` on API responses, credentials redacted from logs, internal errors never leaked.
 - Production refuses to boot without `CLINIC_PASSWORD` and a 24+ character `AUTH_SECRET`.
-- The **local PIN** is a convenience lock, not encryption: it stops casual access (for example a patient holding the tablet), but someone with the device's browser profile and developer tools could read IndexedDB. It is per device and never sent to the server.
-- **Not covered, by design for now:** data at rest on the device is not encrypted (it relies on the device login); the login throttle is in-memory (single instance); serve over HTTPS (the host or reverse proxy must terminate TLS).
+- **Backups are encrypted by default** (AES-256-GCM, key from a passphrase via PBKDF2).
+- The **staff PIN** is a lock, not encryption: it stops casual access (for example a patient holding the tablet), but someone with the device's browser profile and developer tools could read IndexedDB. PIN hashes sync so people can sign in anywhere.
+- Full threat model, controls and accepted limits: **[SECURITY.md](SECURITY.md)**.
 
 ## Moving to Postgres
 
