@@ -12,18 +12,18 @@ test('first launch asks for a staff PIN; mismatches are refused', async ({ page 
   await page.getByLabel('Repeat PIN').fill(PIN);
   await page.getByRole('button', { name: 'Create PIN' }).click();
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-  for (const tile of ['Add Patient', 'Add Record', 'Find Patient', 'Transactions']) {
+  for (const tile of ['Add Patient', 'Add Record', 'Find Patient', 'Transactions', 'Settle Balances']) {
     await expect(page.locator('.tile', { hasText: tile })).toBeVisible();
   }
   await expect(page.locator('.sync .chip')).toHaveText(/^\s*Offline/); // offline is the default
   expect(errors).toEqual([]);
 });
 
-test('nav: Add Patient / Add Record, no lock button; a new session opens locked; the PIN unlocks', async ({ context }) => {
+test('nav: places only (no Add links), no lock button; a new session opens locked; the PIN unlocks', async ({ context }) => {
   const first = await context.newPage();
   await createStaffPin(first);
   const nav = first.getByRole('navigation', { name: 'Main' });
-  await expect(nav.getByRole('link')).toHaveText(['Home', 'Patients', 'Add Patient', 'Add Record', 'Records', 'Transactions']);
+  await expect(nav.getByRole('link')).toHaveText(['Home', 'Patients', 'Records', 'Transactions']);
   await expect(first.getByRole('button', { name: /Lock/ })).toHaveCount(0);
   await first.close();
 
@@ -43,6 +43,8 @@ test('nav: Add Patient / Add Record, no lock button; a new session opens locked;
 test('light by default; dark mode applies and is remembered', async ({ page }) => {
   await createStaffPin(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await page.getByRole('navigation', { name: 'Settings' }).getByRole('link', { name: 'Preferences' }).click();
   await page.getByRole('switch', { name: 'Dark mode' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.reload();

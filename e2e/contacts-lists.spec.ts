@@ -27,7 +27,7 @@ test('phone numbers carry a country code (PH +63 by default); Transactions can c
 
   await page.goto('/transactions');
   await page.getByRole('combobox', { name: 'Search patient' }).fill('aiko');
-  await page.getByRole('option', { name: 'Aiko Tan' }).getByRole('button').click();
+  await page.getByRole('option', { name: 'Aiko Tan' }).click();
   const contact = page.locator('.summary').getByRole('link', { name: /^Contact Phone/ });
   await expect(contact).toHaveText('Contact');
   await expect(contact).toHaveAttribute('href', 'tel:+819012345678');
@@ -61,7 +61,7 @@ test('Records search and Unpaid filter, dashboard kinds, Patients simple view, p
 
   // dashboard: what changed (Patient / Procedure / Transaction), not added/removed
   await page.goto('/');
-  const kinds = page.locator('.activity .badge');
+  const kinds = page.locator('.activity .activity-kind');
   await expect(kinds).toHaveText(['Transaction', 'Procedure', 'Patient']);
 
   // records: "Search by patient…" with an icon, and "Unpaid"

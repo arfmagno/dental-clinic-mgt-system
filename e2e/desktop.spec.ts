@@ -55,7 +55,7 @@ test('desktop app: works offline from disk, keeps data, syncs via the saved serv
 
   // sync: the Connect page asks for the server address; API calls go through the forwarder
   await win.locator('.sync .chip').click();
-  await win.getByRole('dialog', { name: 'Sync settings' }).locator('.switch input').click();
+  await win.getByRole('region', { name: 'Sync' }).getByLabel('Sync with clinic server').click();
   await expect(win.getByLabel('Clinic server address')).toBeVisible();
   await win.getByLabel('Clinic server address').fill('ftp://nope');
   await win.getByLabel('Clinic server password').fill(SERVER_PASSWORD);

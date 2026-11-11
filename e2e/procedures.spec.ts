@@ -29,7 +29,7 @@ test('patient picker opens, filters, closes on Escape / outside click / pick', a
   await page.locator('h1').click();
   await expect(page.locator('.picker-list')).toHaveCount(0);
   await search.fill('maria');
-  await page.getByRole('option', { name: 'Maria Santos' }).getByRole('button').click();
+  await page.getByRole('option', { name: 'Maria Santos' }).click();
   await expect(page.locator('.picker-list')).toHaveCount(0);
   await expect(page.locator('.picked')).toContainText('Maria Santos');
   await expect(add).toBeEnabled();

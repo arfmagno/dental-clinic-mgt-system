@@ -42,23 +42,32 @@ test.describe('on a phone', () => {
 
     await tabs.getByRole('link', { name: 'Records' }).click();
     await expect(page.locator('.rtable thead')).toBeHidden(); // table becomes cards
-    await expect(page.locator('.stat')).toContainText('₱900.00');
+    expect(await noSideScroll(page)).toBe(true);
+    await tabs.getByRole('link', { name: 'Transactions' }).click();
+    await expect(page.locator('.stat')).toContainText('₱900.00'); // the outstanding balance lives here
     expect(await noSideScroll(page)).toBe(true);
     expect(errors).toEqual([]);
   });
 });
 
-test('dental classification decides the chart; the dentist can override the age suggestion', async ({ page }) => {
+test('dental classification decides the chart: Adult by default, by age or chosen by the dentist', async ({ page }) => {
   await createStaffPin(page);
   await addPatient(page, { first: 'Bea', last: 'Lim', birthDate: '2018-06-01' }); // 8 years old
   const charts = page.locator('.charts');
+  await expect(page.locator('.facts')).toContainText('Adult (permanent teeth)');
+  await expect(charts.locator('svg.odontogram')).toHaveCount(1);
+
+  await page.locator('.profile').getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.locator('.modal').getByLabel('Dental classification').selectOption('');
+  await page.locator('.modal').getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
   await expect(page.locator('.facts')).toContainText('Mixed dentition (by age)');
   await expect(charts.locator('figcaption')).toHaveText(['Primary teeth', 'Permanent teeth']);
 
   await page.locator('.profile').getByRole('button', { name: 'Edit', exact: true }).click();
   await page.locator('.modal').getByLabel('Dental classification').selectOption('primary');
   await page.locator('.modal').getByRole('button', { name: 'Save changes' }).click();
-  await expectToast(page, 'Patient updated');
+  await expect(page.locator('.modal')).toHaveCount(0);
   await expect(page.locator('.facts')).toContainText('Pediatric (primary teeth)');
   await expect(page.locator('.facts')).not.toContainText('(by age)');
   await expect(charts.locator('svg.odontogram')).toHaveCount(1);
@@ -85,7 +94,7 @@ test('transactions: pick a patient, settle one partly, then settle the rest in b
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Transactions' }).click();
   await page.getByRole('combobox', { name: 'Search patient' }).fill('tess');
-  await page.getByRole('option', { name: 'Tess Uy' }).getByRole('button').click();
+  await page.getByRole('option', { name: 'Tess Uy' }).click();
   await expect(page).toHaveURL(/patientId=/);
   await expect(page.locator('.summary')).toContainText('₱10,000.00');
   await expect(page.locator('.txn')).toHaveCount(3);

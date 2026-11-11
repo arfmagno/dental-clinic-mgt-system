@@ -48,7 +48,12 @@ test('no page or dialog runs off the side of the screen', async ({ page }) => {
   const patientId = patientUrl.split('/').pop()!;
 
   const views: { name: string; path: string; open?: (p: Page) => Promise<void> }[] = [
-    { name: 'dashboard', path: '/?demo' },
+    { name: 'dashboard', path: '/' },
+    { name: 'settings: activity', path: '/settings' },
+    { name: 'settings: preferences', path: '/settings?tab=preferences' },
+    { name: 'settings: sync', path: '/settings?tab=sync' },
+    { name: 'settings: backup', path: '/settings?tab=backup' },
+    { name: 'transactions: owing', path: '/transactions?view=owing' },
     { name: 'patients', path: '/patients' },
     { name: 'add patient', path: '/patients/new' },
     { name: 'patient', path: patientUrl },

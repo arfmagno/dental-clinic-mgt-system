@@ -1,5 +1,6 @@
 node_modules
 dist
+dist-demo
 # runtime data only (not the services/web/src/data source folder)
 /data
 /services/api/data
@@ -12,3 +13,5 @@ dist
 /e2e/.report
 /e2e/.results
 /services/desktop/release
+/services/web/coverage
+/lighthouse

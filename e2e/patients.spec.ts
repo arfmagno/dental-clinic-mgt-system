@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 
 test('add patient: last name and date of birth are required; citizenship defaults to Filipino', async ({ page }) => {
   const errors = trackErrors(page);
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Add Patient' }).click();
+  await page.getByRole('main').getByRole('link', { name: /^Add Patient/ }).click(); // dashboard tile
   await expect(page).toHaveURL(/\/patients\/new$/);
   await expect(page.locator('.topbar')).toBeVisible(); // a staff page, not the isolated patient mode
 
@@ -95,7 +95,7 @@ test('patient mode: from Add Patient, isolated, survives reload, PIN to leave', 
 
 test('sample data: list grouped by last-name initial, 25 per page, A–Z jump, search', async ({ page }) => {
   await loadSampleData(page);
-  await expect(page.locator('.stat')).toHaveCount(0); // no patient / balance cards on the dashboard
+  await expect(page.getByRole('region', { name: 'Sample data' })).toHaveCount(0); // no sample-data tool in the app
 
   await page.goto('/patients');
   await expect(page.getByText(/of 60 patients/)).toBeVisible();
@@ -115,15 +115,4 @@ test('sample data: list grouped by last-name initial, 25 per page, A–Z jump, s
   const n = await page.locator('a.prow').count();
   expect(n).toBeGreaterThan(0);
   expect(n).toBeLessThan(25);
-
-  // removing the sample data leaves the list empty again
-  await page.goto('/?demo');
-  let browserDialog = false;
-  page.on('dialog', (d) => ((browserDialog = true), void d.dismiss()));
-  await page.getByRole('region', { name: 'Sample data' }).getByRole('button', { name: 'Remove', exact: true }).click();
-  await page.getByRole('alertdialog', { name: 'Remove sample data?' }).getByRole('button', { name: 'Remove sample data' }).click();
-  await expect(page.getByRole('status')).toHaveText('Sample data removed.');
-  expect(browserDialog).toBe(false); // in-app pop-up, not a browser confirm
-  await page.goto('/patients');
-  await expect(page.getByText('No patients yet.')).toBeVisible();
 });

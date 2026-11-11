@@ -18,8 +18,9 @@ test('offline by default, connect to sync, keep working offline, reconnect, soft
   expect(mine(await serverRows(baseURL!))).toHaveLength(0); // offline by default: nothing sent
 
   // turn sync on → connect
-  await page.locator('.sync .chip').click();
-  await page.getByRole('dialog', { name: 'Sync settings' }).locator('.switch input').click();
+  await page.locator('.sync .chip').click(); // the chip opens Settings → Sync
+  await expect(page).toHaveURL(/\/settings\?tab=sync$/);
+  await page.getByRole('region', { name: 'Sync' }).getByLabel('Sync with clinic server').click();
   await expect(page).toHaveURL(/\/connect$/);
   await page.getByLabel('Clinic server password').fill('nope');
   await page.getByRole('button', { name: 'Connect and turn on sync' }).click();

@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { buildDemoData, SYNC_TABLES } from '@clinic/shared';
 
 export const PIN = '1234';
 export const SERVER_PASSWORD = 'e2e-password';
@@ -13,11 +14,30 @@ export async function createStaffPin(page: Page, path = '/') {
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 }
 
-/** Loads the sample patients through the dashboard tool (available in any build via ?demo). */
+/**
+ * Puts the 60 sample patients (shared/src/demo.ts) straight into the app's on-device database, as
+ * unsynced rows. The app has no sample-data button; this is test setup only. Ends on the dashboard.
+ */
 export async function loadSampleData(page: Page) {
-  await page.goto('/?demo');
-  await page.getByRole('region', { name: 'Sample data' }).getByRole('button', { name: 'Load', exact: true }).click();
-  await expect(page.getByRole('status')).toHaveText('Loaded 60 sample patients.');
+  const data = buildDemoData({ now: new Date().toISOString() });
+  await page.goto('/');
+  await page.evaluate(
+    ({ rows, tables }) =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('clinic'); // opened by the app already: no upgrade
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const idb = open.result;
+          const tx = idb.transaction(tables, 'readwrite');
+          for (const t of tables) for (const row of rows[t]) tx.objectStore(t).put({ ...row, dirty: 1 });
+          tx.oncomplete = () => (idb.close(), resolve());
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+    { rows: data as unknown as Record<string, object[]>, tables: [...SYNC_TABLES] as string[] },
+  );
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 }
 
 export interface NewPatient {
@@ -72,4 +92,12 @@ export function trackErrors(page: Page) {
 /** Waits for an in-app notification with this text (earlier ones may still be on screen). */
 export async function expectToast(page: Page, text: string) {
   await expect(page.getByRole('status').filter({ hasText: text })).toBeVisible();
+}
+
+/** Connects this device to the clinic server and turns sync on (Connect page). */
+export async function connectSync(page: Page) {
+  await page.goto('/connect');
+  await page.getByLabel('Clinic server password').fill(SERVER_PASSWORD);
+  await page.getByRole('button', { name: 'Connect and turn on sync' }).click();
+  await expect(page).not.toHaveURL(/\/connect$/);
 }

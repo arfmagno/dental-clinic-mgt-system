@@ -33,6 +33,10 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Coverage (web logic layers; fails below the thresholds in vitest.config.ts)
+        run: npm run coverage
+      - name: Demo build (static, no server)
+        run: npm run build:demo
 
   e2e:
     name: End-to-end (Playwright)
@@ -58,3 +62,25 @@ jobs:
           name: e2e-results
           path: e2e/.results
           retention-days: 7
+
+  lighthouse:
+    name: Lighthouse (performance, accessibility, best practices, SEO)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Audit the production build (fails below the floors in scripts/lighthouse.mjs)
+        run: npm run lighthouse
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-report
+          path: lighthouse
+          retention-days: 14
