@@ -77,13 +77,17 @@ function createWindow() {
       spellcheck: true,
     },
   });
-  // Stay inside the app; real web links open in the default browser.
+  // Stay inside the app; web links open in the default browser, and phone/email links (the
+  // Contact button) in the system's phone or mail app.
+  const EXTERNAL = /^(https?:\/\/|tel:|sms:|mailto:)/;
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//.test(url)) void shell.openExternal(url);
+    if (EXTERNAL.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(START_URL)) e.preventDefault();
+    if (url.startsWith(START_URL)) return;
+    e.preventDefault();
+    if (/^(tel|sms|mailto):/.test(url)) void shell.openExternal(url);
   });
   void win.loadURL(START_URL);
 }

@@ -259,6 +259,15 @@ test('phone numbers: country code, flag, parsing older numbers, tel: links', asy
   assert.equal(phoneHref('0917-123-4567'), '+639171234567');
 });
 
+test('contact links: call, email, Messenger; plain "other" details have none', async () => {
+  const { contactLink } = await import('./contact');
+  assert.deepEqual(contactLink({ type: 'phone', value: '+63 917 123 4567' }), { href: 'tel:+639171234567', newTab: false });
+  assert.deepEqual(contactLink({ type: 'email', value: 'ana@example.com' }), { href: 'mailto:ana@example.com', newTab: false });
+  assert.deepEqual(contactLink({ type: 'messenger', value: 'm.me/ana.cruz' }), { href: 'https://m.me/ana.cruz', newTab: true });
+  assert.deepEqual(contactLink({ type: 'messenger', value: '@ana.cruz' }), { href: 'https://m.me/ana.cruz', newTab: true });
+  assert.equal(contactLink({ type: 'other', value: 'Ask the guard' }), null);
+});
+
 test('phone search: "0917…", digits only, or with the country code', async () => {
   const { contactSearchText } = await import('./search');
   const { emptyPatient } = await import('../services/patientService');

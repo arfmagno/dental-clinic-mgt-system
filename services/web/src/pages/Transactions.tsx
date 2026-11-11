@@ -1,10 +1,12 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { PAYMENT_METHODS_OFFERED, PAYMENT_METHOD_LABEL, type PaymentMethod, type Procedure } from '@clinic/shared';
+import { PAYMENT_METHODS_OFFERED, PAYMENT_METHOD_LABEL, type PatientContact, type PaymentMethod, type Procedure } from '@clinic/shared';
 import { useFeedback } from '../components/Feedback';
+import { Icon, type IconName } from '../components/Icon';
 import { Modal } from '../components/Modal';
 import { PatientPicker } from '../components/PatientPicker';
 import { PaymentForm } from '../components/PaymentForm';
+import { contactLink } from '../domain/contact';
 import { formalName, formatDate, formatMoney, formatTime, nowLocal } from '../domain/format';
 import { usePatientBundle } from '../hooks/useData';
 import { settleProcedures } from '../services/procedureService';
@@ -87,6 +89,7 @@ export function Transactions() {
             <div className="grow">
               <Link to={`/patients/${bundle.patient.id}`} className="strong">{formalName(bundle.patient)}</Link>
               <div className="muted small">{unsettled.length} unsettled record{unsettled.length === 1 ? '' : 's'}</div>
+              {bundle.contacts[0] && <ContactButton contact={bundle.contacts[0]} />}
             </div>
             <div className="right">
               <div className="muted small">Outstanding</div>
@@ -188,6 +191,35 @@ export function Transactions() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+const CONTACT_ICON: Record<PatientContact['type'], IconName> = { phone: 'phone', email: 'mail', messenger: 'message', other: 'message' };
+const CONTACT_KIND: Record<PatientContact['type'], string> = { phone: 'Phone', email: 'Email', messenger: 'Messenger', other: 'Contact' };
+
+/** Reaches the patient through their primary contact: call, email or Messenger; anything else is copied. */
+function ContactButton({ contact }: { contact: PatientContact }) {
+  const { notify } = useFeedback();
+  const link = contactLink(contact);
+  const label = `${CONTACT_KIND[contact.type]}: ${contact.value}${contact.label ? ` (${contact.label})` : ''}`;
+  const body = <><Icon name={CONTACT_ICON[contact.type]} size={16} /> Contact</>;
+  return (
+    <div className="contact-line">
+      {link ? (
+        <a className="btn sm" href={link.href} title={label} aria-label={`Contact ${label}`} {...(link.newTab ? { target: '_blank', rel: 'noreferrer' } : {})}>{body}</a>
+      ) : (
+        <button
+          type="button"
+          className="btn sm"
+          title={label}
+          aria-label={`Contact ${label}`}
+          onClick={() => navigator.clipboard.writeText(contact.value).then(() => notify('Contact copied'), () => notify(contact.value))}
+        >
+          {body}
+        </button>
+      )}
+      <span className="muted small">{contact.value}</span>
     </div>
   );
 }
