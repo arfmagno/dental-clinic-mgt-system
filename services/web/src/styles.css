@@ -407,7 +407,7 @@ input[type='checkbox'], input[type='radio'] { width: 20px; height: 20px; min-hei
 .staff-exit .link { color: var(--muted); font-size: 0.85rem; }
 
 /* ---------- tablets ---------- */
-@media (max-width: 1080px) and (min-width: 761px) {
+@media (max-width: 1180px) and (min-width: 761px) { /* the full name and every nav link only fit side by side from ~1180px */
   .brand-name { display: none; }
 }
 @media (max-width: 980px) {
