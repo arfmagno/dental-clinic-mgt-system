@@ -17,7 +17,7 @@ under the Philippine Data Privacy Act of 2012), so the limits are stated as plai
 | --- | --- |
 | A patient handed the tablet trying to see other patients | Yes: patient mode |
 | Someone on the internet reaching the server | Yes: everything on `/api` needs a token |
-| A staff member doing what only an admin may (manage staff, restore, delete patients) | Yes: in the app, and on the server for staff accounts |
+| A staff member doing what only an admin may (manage staff, export or restore backups, delete patients) | Yes: in the app, and on the server for staff accounts |
 | A lost or copied backup file | Yes: encrypted with a passphrase by default |
 | A stolen, unlocked device or a copied browser profile | Partly: see *Known limits* |
 | Someone holding the server password, or the server's database file | Partly: see *Known limits* |
@@ -35,7 +35,7 @@ under the Philippine Data Privacy Act of 2012), so the limits are stated as plai
 
 ### 2. Roles
 
-- **Admins** manage staff, restore backups and delete patients. **Staff** do everything else.
+- **Admins** manage staff, export and restore backups, and delete patients. **Staff** do everything else.
 - The rules are enforced in the app's services, not only in the screens (`staffService.requireAdmin`).
 - The server enforces them for staff accounts, the part that matters most (see 4).
 - The clinic always keeps one admin; nobody can deactivate themselves.
@@ -82,8 +82,8 @@ under the Philippine Data Privacy Act of 2012), so the limits are stated as plai
 - Only the format marker and export time stay readable.
 - GCM detects any change: a wrong passphrase and a tampered file are refused the same way.
 - An unencrypted export needs an explicit opt-out and says what that means.
-- Restoring is admin-only and validates every row.
-- A backup file **cannot add staff accounts** to a device; accounts arrive only through sync.
+- **Exporting and restoring are admin-only**: an export is every patient record in one file. Restoring validates every row.
+- A backup holds staff **names and roles only, never PIN hashes**, so a lost file gives nothing to brute-force. Restoring never adds or changes staff accounts; they arrive only through sync.
 
 ### 6. Windows desktop app
 
@@ -101,7 +101,7 @@ under the Philippine Data Privacy Act of 2012), so the limits are stated as plai
 1. **Data on a device is not encrypted at rest.** IndexedDB relies on the device's own protection. Anyone with the unlocked Windows account, or a copy of the browser profile, can read it with developer tools. The PIN gates the screens, not the files.
    - *Why:* encrypting with a key derived from a PIN would give weak protection anyway (a 4–6 digit PIN), and multi-user devices would need key wrapping per person.
    - *What the clinic must do:* turn on BitLocker (or the device's disk encryption) and give each computer its own Windows login.
-2. **PINs are short, and their hashes sync.** Anyone holding the server's database file, a device's browser profile or an unencrypted backup can test all 1,110,000 possible PINs offline. At 210,000 PBKDF2 iterations that takes minutes to hours on ordinary hardware, not years.
+2. **PINs are short, and their hashes sync.** Anyone holding the server's database file or a device's browser profile can test all 1,110,000 possible PINs offline (backups do not carry the hashes). At 210,000 PBKDF2 iterations that takes minutes to hours on ordinary hardware, not years.
    - The PIN is a quick lock for a shared front desk, not a password.
    - Protect the server database and backups like the patient data they sit next to.
 3. **Who made an offline change is reported by the device.** A change made offline is recorded on the device under the person signed in there, and the server cannot verify that after the fact. A modified app holding the clinic password could push entries naming someone else. The server does guarantee that entries are never rewritten once received.

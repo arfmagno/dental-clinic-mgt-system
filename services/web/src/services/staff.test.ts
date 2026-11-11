@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'vitest';
 import { SYNC_TABLES, validateColumns } from '@clinic/shared';
 import { PATIENT_ACTOR, setActor } from '../data/actor';
 import { db } from '../data/db';
-import { buildBackup, parseBackup, restoreBackup } from './backupService';
+import { buildBackup, downloadBackup, parseBackup, restoreBackup } from './backupService';
 import { deletePatient, emptyPatient, savePatient } from './patientService';
 import { pinMatches, verifyStaffPin } from './pinService';
 import { addPayment, createProcedure } from './procedureService';
@@ -69,13 +69,14 @@ describe('staff accounts', () => {
     expect(await verifyStaffPin(admin, '1357', (await db.staff.get(admin))!)).toEqual({ ok: true });
   });
 
-  test('deleting patients and restoring backups are admin only', async () => {
+  test('deleting patients, exporting and restoring backups are admin only', async () => {
     const { desk } = await clinic();
     const p = await savePatient(undefined, juan(), []);
     const backup = parseBackup(JSON.stringify(await buildBackup()));
     setActor(desk);
     await expect(deletePatient(p)).rejects.toThrow(PermissionError);
     await expect(restoreBackup(backup)).rejects.toThrow(PermissionError);
+    await expect(downloadBackup('a long passphrase')).rejects.toThrow(PermissionError);
   });
 });
 

@@ -144,8 +144,9 @@ function BackupSection() {
     <section className="card stack" aria-labelledby="backup-title">
       <h2 id="backup-title">Backup</h2>
       <p className="muted small">
-        Saves every record on this device (patients with photos, contacts, procedures, payments, dental charts, staff accounts and the activity log) as one file you can keep on a USB drive or another computer. It works offline and does not need sync.
+        Saves every record on this device (patients with photos, contacts, procedures, payments, dental charts, staff names and the activity log; never PINs) as one file you can keep on a USB drive or another computer. It works offline and does not need sync.
       </p>
+      {!isAdmin && <p className="muted small">Exporting and restoring backups is done by an admin.</p>}
       {counts && (
         <dl className="kv">
           {counts.map(([t, n]) => (
@@ -153,7 +154,7 @@ function BackupSection() {
           ))}
         </dl>
       )}
-      <form className="stack tight" onSubmit={(e) => void exportAll(e)}>
+      {isAdmin && <form className="stack tight" onSubmit={(e) => void exportAll(e)}>
         {!unprotected && (
           <div className="grid2">
             <label className="field">
@@ -181,12 +182,12 @@ function BackupSection() {
             <Icon name="download" size={18} /> {busy ? 'Preparing…' : 'Export all data'}
           </button>
         </div>
-      </form>
+      </form>}
       <p className="muted small">
         {last ? <>Last backup from this device: {new Date(last).toLocaleString()}.</> : 'No backup has been made from this device yet.'}{' '}
         Store backups somewhere only clinic staff can reach.
       </p>
-      {isAdmin ? <RestoreSection /> : <p className="muted small">Restoring a backup is done by an admin.</p>}
+      {isAdmin && <RestoreSection />}
     </section>
   );
 }

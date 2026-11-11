@@ -199,6 +199,8 @@ describe('backup', () => {
     expect(b.counts.patient_contacts).toBe(b.tables.patient_contacts.length - 1);
     expect(Object.values(b.tables).flat().some((r) => 'dirty' in r)).toBe(false);
     expect(JSON.parse(JSON.stringify(b))).toEqual(b); // plain JSON
+    expect(b.tables.staff.length).toBeGreaterThan(0);
+    for (const s of b.tables.staff) expect(Object.keys(s).filter((k) => k.startsWith('pin'))).toEqual([]); // names, never PIN hashes
     expect(backupFileName(new Date(2026, 10, 11, 9, 5))).toBe('magno-dental-backup-2026-11-11-0905.json');
   });
 
@@ -210,11 +212,12 @@ describe('backup', () => {
     await asAdmin();
 
     const r = await restoreBackup(parseBackup(text));
-    expect(r).toEqual({ added: 10, updated: 0, kept: 1 }); // patient, contact, procedure, payment, record, tooth + 4 audit entries; the admin was already here
+    expect(r).toEqual({ added: 10, updated: 0, kept: 0 }); // patient, contact, procedure, payment, record, tooth + 4 audit entries; staff rows are never restored
     expect((await db.patients.get(id))?.firstName).toBe('Juan');
     expect((await db.tooth_entries.toArray()).map((e) => e.tooth)).toEqual([16]);
     for (const t of SYNC_TABLES) expect((await db.table(t).toArray()).every((row) => row.dirty === 1)).toBe(true);
-    expect(await restoreBackup(parseBackup(text))).toEqual({ added: 0, updated: 0, kept: 11 }); // again: nothing changes
+    expect(await restoreBackup(parseBackup(text))).toEqual({ added: 0, updated: 0, kept: 10 }); // again: nothing changes
+    expect((await db.staff.get('admin-1'))?.pinHash).toBe('aGFzaA=='); // the account here is untouched
   });
 
   test('restore never overwrites newer work: older copies update, newer ones are kept', async () => {
@@ -224,7 +227,7 @@ describe('backup', () => {
     backup.tables.patients.find((p) => p.id === a)!.updatedAt = '2999-01-01T00:00:00.000Z'; // backup newer for Ana
     backup.tables.patients.find((p) => p.id === a)!.occupation = 'Teacher';
     await savePatient(b, { ...juan(), firstName: 'Benjamin' }, []); // device newer for Ben
-    expect(await restoreBackup(backup)).toEqual({ added: 0, updated: 1, kept: 4 }); // Ben, the admin, two audit entries
+    expect(await restoreBackup(backup)).toEqual({ added: 0, updated: 1, kept: 3 }); // Ben and two audit entries
     expect((await db.patients.get(a))?.occupation).toBe('Teacher');
     expect((await db.patients.get(b))?.firstName).toBe('Benjamin');
   });

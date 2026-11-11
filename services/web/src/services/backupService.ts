@@ -15,12 +15,22 @@ export interface Backup {
 }
 
 /** A complete copy of this device's records (patients with photos, contacts, procedures, payments, charts). */
+/**
+ * Staff rows go into a backup only so the activity log can still say who did what: names and
+ * roles, never PIN hashes. A backup file travels (USB drives, email, cloud); a PIN hash in it could
+ * be brute-forced offline. Accounts themselves only ever arrive through sync.
+ */
+function withoutPin(row: AnyRow): AnyRow {
+  const { pinSalt: _salt, pinHash: _hash, pinIterations: _iterations, ...rest } = row as AnyRow & Record<string, unknown>;
+  return rest as AnyRow;
+}
+
 export async function buildBackup(db: ClinicDB = defaultDb, now = new Date()): Promise<Backup> {
   const tables: Record<string, AnyRow[]> = {};
   await db.transaction('r', SYNC_TABLES.map((t) => db.table(t)), async () => {
     for (const t of SYNC_TABLES) {
       // `dirty` is this device's sync bookkeeping, not data
-      tables[t] = (await db.table<AnyRow & { dirty?: 0 | 1 }>(t).toArray()).map(({ dirty: _dirty, ...row }) => row as AnyRow);
+      tables[t] = (await db.table<AnyRow & { dirty?: 0 | 1 }>(t).toArray()).map(({ dirty: _dirty, ...row }) => (t === 'staff' ? withoutPin(row as AnyRow) : (row as AnyRow)));
     }
   });
   const counts = Object.fromEntries(SYNC_TABLES.map((t) => [t, tables[t].filter((r) => !r.isDeleted).length]));
@@ -110,6 +120,7 @@ export async function decryptBackup(envelope: EncryptedBackup, passphrase: strin
  * with the passphrase unless the user chose to save it unprotected (passphrase null).
  */
 export async function downloadBackup(passphrase: string | null): Promise<Backup> {
+  await requireAdmin(); // a full copy of every patient record in one file: admins only
   const backup = await buildBackup();
   const content = passphrase === null ? backup : await encryptBackup(backup, passphrase);
   const blob = new Blob([JSON.stringify(content, null, 1)], { type: 'application/json' });
@@ -178,6 +189,7 @@ function checkRow(table: SyncTable, r: unknown, i: number): AnyRow {
   if (typeof row.isDeleted !== 'boolean') throw new BackupError(`${where}: invalid isDeleted.`);
   const out: Record<string, unknown> = {};
   for (const c of [...BASE_COLUMNS, ...TABLE_COLUMNS[table]]) {
+    if (table === 'staff' && c.startsWith('pin')) continue; // never in a backup (see withoutPin)
     if (!(c in row)) throw new BackupError(`${where}: missing ${c}.`);
     out[c] = row[c];
   }
@@ -210,9 +222,9 @@ export async function restoreBackup(backup: Backup, db: ClinicDB = defaultDb): P
       const put: (AnyRow & { dirty: 1 })[] = [];
       for (const row of rows) {
         const local = existing.get(row.id);
-        // Staff accounts arrive through sync, never from a file: a backup cannot add an account
-        // (whose PIN someone else knows) to this device. Existing accounts may be brought up to date.
-        if (!local && t === 'staff') continue;
+        // Staff accounts arrive through sync, never from a file: a backup can neither add an
+        // account (whose PIN someone else knows) nor change one here. Their rows are only names.
+        if (t === 'staff') continue;
         if (!local) result.added++;
         else if (row.updatedAt > local.updatedAt) result.updated++;
         else {
