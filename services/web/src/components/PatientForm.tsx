@@ -101,7 +101,7 @@ export function PatientForm({ initial, initialContacts, submitLabel, savingLabel
         {variant === 'staff' && (
           <label className="field">
             <span>Dental classification</span>
-            <select value={f.dentalClassification ?? ''} onChange={(e) => set('dentalClassification', e.target.value as DentalClassification | '')}>
+            <select value={f.dentalClassification} onChange={(e) => set('dentalClassification', e.target.value as DentalClassification | '')}>
               <option value="">By age: {DENTAL_CLASSIFICATION_LABEL[suggestDentalClassification(ageOf(f.birthDate))]}</option>
               {DENTAL_CLASSIFICATIONS.map((c) => <option key={c} value={c}>{DENTAL_CLASSIFICATION_LABEL[c]}</option>)}
             </select>

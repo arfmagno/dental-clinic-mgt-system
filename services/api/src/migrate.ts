@@ -1,6 +1,6 @@
 import type { SqlDriver, SqlExecutor, SqlParam } from './infrastructure/db/driver.js';
 import type { Migration, MigrationContext } from './migrations/types.js';
-import { LEGACY_VERSIONS, loadMigrations } from './migrations/index.js';
+import { loadMigrations } from './migrations/index.js';
 import { SyncRepository } from './repositories/syncRepository.js';
 
 const ident = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -48,28 +48,9 @@ export interface MigrateOptions {
   log?: (msg: string) => void;
 }
 
-/**
- * Bookkeeping table: one row per applied migration, keyed by version. Databases from before the
- * timestamped names have `_migrations(id INTEGER)`; convert that once, mapping the old ids.
- */
+/** Bookkeeping table: one row per applied migration, keyed by version. */
 async function ensureBookkeeping(driver: SqlDriver): Promise<void> {
-  // Probe with plain SELECTs (portable; no SQLite pragmas).
-  const works = (sql: string) => driver.all(sql).then(() => true, () => false);
-  if (await works('SELECT version FROM _migrations LIMIT 1')) return;
-  if (await works('SELECT id FROM _migrations LIMIT 1')) {
-    await driver.transaction(async (tx) => {
-      const old = await tx.all<{ id: number; name: string; appliedAt: string }>('SELECT id, name, appliedAt FROM _migrations');
-      await tx.exec('CREATE TABLE _migrations_v2 (version TEXT PRIMARY KEY, name TEXT NOT NULL, appliedAt TEXT NOT NULL)');
-      for (const r of old) {
-        const version = LEGACY_VERSIONS[r.id];
-        if (!version) throw new Error(`Unknown legacy migration id ${r.id}`);
-        await tx.run('INSERT INTO _migrations_v2 (version, name, appliedAt) VALUES (?, ?, ?)', [version, r.name, r.appliedAt]);
-      }
-      await tx.exec('DROP TABLE _migrations; ALTER TABLE _migrations_v2 RENAME TO _migrations;');
-    });
-  } else {
-    await driver.exec('CREATE TABLE _migrations (version TEXT PRIMARY KEY, name TEXT NOT NULL, appliedAt TEXT NOT NULL)');
-  }
+  await driver.exec('CREATE TABLE IF NOT EXISTS _migrations (version TEXT PRIMARY KEY, name TEXT NOT NULL, appliedAt TEXT NOT NULL)');
 }
 
 /**

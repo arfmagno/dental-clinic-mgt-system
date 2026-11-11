@@ -26,9 +26,9 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `infrastructure/db/sqlite.ts` | SQLite adapter. Serialises access with a mutex so a transaction is never interleaved with other requests; nested transactions are savepoints |
 | `infrastructure/db/open.ts` | Picks the adapter from `DATABASE_URL` |
 | `infrastructure/auth/tokens.ts` | `TokenSigner`: HMAC-SHA256 signed expiring tokens |
-| `migrate.ts` | Migration runner (ordering by version, refuses out-of-order, transactions, backup, FK check, `backfill`/`insert`, legacy integer-id conversion) |
+| `migrate.ts` | Migration runner (ordering by version, refuses out-of-order, transactions, backup, FK check, `backfill`/`insert`) |
 | `migrate-cli.ts` | `npm run migrate` entry point |
-| `migrations/` | Migration files `<UTC YYYYMMDDHHmmss>-<kebab>.sql` or `.ts` (`20261110090000-initial-schema.sql`, `20261110120000-normalize-patients.ts`, `20261111090000-single-address.ts`); `index.ts` (file-name rules, `checkMigrationFiles`, `loadMigrations`, `LEGACY_VERSIONS`); `generate.ts` (new names and templates); `types.ts` |
+| `migrations/` | Migration files `<UTC YYYYMMDDHHmmss>-<kebab>.sql` or `.ts` (the baseline `20261110090000-initial-schema.sql`); `index.ts` (file-name rules, `checkMigrationFiles`, `loadMigrations`, `LEGACY_VERSIONS`); `generate.ts` (new names and templates); `types.ts` |
 | `seed.ts` | `seedDemo` / `unseedDemo`: shared sample data written through `SyncService.push` |
 | `scripts/` | `new-migration.ts` (`npm run migration:new`), `check-migrations.ts` (part of `npm run lint`), `seed.ts` (`npm run seed`) |
 | `repositories/syncRepository.ts` | `nextSeq`, `upsertIfNewer` (atomic last-write-wins), `changedSince`, `ping` |
@@ -44,14 +44,14 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `http/routes/` | `health.ts`, `auth.ts`, `sync.ts`: thin handlers |
 | `http/webApp.ts` | Static hosting of the built web app + SPA fallback |
 | `server.test.ts` | Sync-rule and endpoint-security tests (in-memory DB, real HTTP stack via `inject`) |
-| `migrations.test.ts` | File naming, generator, loader (.sql + .ts), runner guarantees, legacy id conversion, each data-moving migration |
+| `migrations.test.ts` | File naming, generator, loader (.sql + .ts), runner guarantees, the baseline schema matching the shared model |
 | `seed.test.ts` | Sample data validity and seeding through sync |
 
 ## Web reference (`services/web/src`)
 
 | Folder / file | Purpose |
 | --- | --- |
-| `data/db.ts` | Dexie schema (`ClinicDB`), the `Local<T>` type (`dirty` flag); version 2 upgrades 0.1.0 data (`legacy.ts`), version 3 folds addresses into the patient row (`legacy-v3.ts`) |
+| `data/db.ts` | Dexie schema (`ClinicDB`), the `Local<T>` type (`dirty` flag); one baseline version (numbered 3) |
 | `data/repository.ts` | `createRow` / `updateRow` / `softDeleteRow` stamp uuid + timestamps + dirty; `toWire` strips local fields |
 | `domain/chart.ts` | `buildChart`: replay dental records oldest→newest, optional "as of" record |
 | `domain/format.ts` | Money, dates, `nowLocal()`, `ageOf`, `formatAddress`, `formalName`, `summarize` (last visit, balance from payments) |
@@ -76,7 +76,7 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `components/` | `Odontogram`, `DentalChart` (only the classification's chart(s)), `Feedback` (`useFeedback().confirm/notify`: in-app dialogs and notifications; never use `window.confirm/alert`), `Icon`, `ProcedureForm`, `PatientForm`, `ContactsEditor`, `CountrySelect`, `NationalitySelect`, `ProcedureTypeField` (list + "Other" text), `PaymentForm`, `PinForm`, `PhotoPicker`, `PatientPicker`, `ThemeToggle`, `Modal`, `Layout` (top nav; bottom tab bar + Add sheet on phones), `SyncChip` |
 | `pages/` | `Dashboard`, `Patients`, `PatientNew`, `PatientDetail`, `AddProcedure` (Add Record), `Records`, `Transactions` (settle one or many), `Connect`, `LockScreens` (`SetupPin`, `Unlock`, `PatientMode`) |
 | `domain/procedureType.ts` | `splitProcedureType` / `resolveProcedureType`: stored type to list choice + "Other" text and back |
-| `**/*.test.ts(x)` | Vitest: `domain/domain.test.ts` (pure logic), `services/services.test.ts` (services on fake IndexedDB), `data/db.upgrade.test.ts` (device upgrades), `components/components.test.tsx`, `components/feedback.test.tsx` (pop-ups, Transactions), `pages/Connect.test.tsx`; setup in `test/setup.ts` |
+| `**/*.test.ts(x)` | Vitest: `domain/domain.test.ts` (pure logic), `services/services.test.ts` (services on fake IndexedDB), `components/components.test.tsx`, `components/feedback.test.tsx` (pop-ups, Transactions), `pages/Connect.test.tsx`; setup in `test/setup.ts` |
 
 ## Shared reference (`shared/src`)
 
@@ -91,8 +91,7 @@ Node 20. TypeScript everywhere; ESM. `better-sqlite3` is pinned to `^11` because
 | `nationalities.ts` | Country code to nationality (`PH` → Filipino), `nationalityOptions` (Filipino first), `DEFAULT_CITIZENSHIP` |
 | `demo.ts` | `buildDemoData`: deterministic sample rows for every synced table |
 | `validation.ts` | `validateColumns(table, row)`: used by the server on push |
-| `legacy.ts` | **Frozen** v1→v2 transforms + `deterministicUuid` (migration `20261110120000` and Dexie v2) |
-| `legacy-v3.ts` | **Frozen** v2→v3 address transform (migration `20261111090000` and Dexie v3) |
+| `ids.ts` | `deterministicUuid`: same seed → same id (sample data) |
 
 ## Conventions
 
@@ -137,14 +136,13 @@ See "Recipe: add a new table" in [MIGRATIONS.md](MIGRATIONS.md).
 - **Web (Vitest, jsdom):**
   - pure domain functions;
   - **integration** of the real services and Dexie schema on fake-indexeddb, with no mocks;
-  - device schema upgrades from 0.1.0 and 0.2.0 data;
   - **components** with Testing Library, driven like a user.
 - **Desktop:** request routing, path escape and address validation (`node:test`).
 - **End to end (Playwright, `e2e/`):** `npm run e2e` builds the web app, starts the real server with a fresh database on :3155 and drives Microsoft Edge. It covers:
   - app shell and lock;
   - patients, procedures and payments;
   - sync/offline and PDF export;
-  - a 0.2.0 device upgrade in a real browser;
+  - phone layout, layout overflow at every width, contacts and lists;
   - the packaged desktop `.exe` (skipped until `npm run dist:desktop` has been run).
 
   One worker; each test gets a fresh browser profile.

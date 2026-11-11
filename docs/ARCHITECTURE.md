@@ -53,7 +53,7 @@ Each layer depends only on the one below it, and only through a narrow interface
 
 ### Shared (`shared`)
 
-Types, vocabularies (`vocab.ts`), the FDI tooth catalog, outlines and layout (`teeth.ts`), name formatting (`names.ts`), countries (`countries.ts`) and nationalities (`nationalities.ts`), column validation (`validation.ts`), the frozen data transforms used by migrations and device upgrades (`legacy.ts` v1→v2, `legacy-v3.ts` v2→v3), the sample data generator (`demo.ts`), and the **sync table definitions** (`SYNC_TABLES`, `TABLE_COLUMNS`). Both sides import it, so they cannot disagree on the wire format or on what a valid value is.
+Types, vocabularies (`vocab.ts`), the FDI tooth catalog, outlines and layout (`teeth.ts`), name formatting (`names.ts`), countries (`countries.ts`) and nationalities (`nationalities.ts`), column validation (`validation.ts`), phone numbers (`phone.ts`), deterministic ids (`ids.ts`), the sample data generator (`demo.ts`), and the **sync table definitions** (`SYNC_TABLES`, `TABLE_COLUMNS`). Both sides import it, so they cannot disagree on the wire format or on what a valid value is.
 
 ## Data model
 
@@ -101,7 +101,7 @@ Local-first, **last-write-wins per row** (by `updatedAt`).
 
 Known limits (accepted for v1): conflicts are whole-row, so two devices editing the same row offline keep only the later edit; sync trusts each device's clock within the clamp. Payments recorded by staff sync like any other row; each payment is its own row, so two devices recording payments offline never overwrite each other. Server-authoritative features (queue numbers, gateway payment confirmations) must **not** use this path; see the roadmap.
 
-**Schema upgrades on devices.** When a release changes the schema, the device's database upgrades itself (Dexie versions) using the **same frozen transforms** as the server migration (`shared/legacy.ts`, `shared/legacy-v3.ts`), and rows created by the upgrade get **deterministic ids** (a hash of the source row id). A device that upgrades offline and the server therefore produce the same rows, and syncing them later merges instead of duplicating.
+**Schema upgrades on devices.** When a release changes the schema, the device's database upgrades itself (Dexie versions) using the **same frozen transforms** as the server migration (kept in `shared`), and rows created by the upgrade get **deterministic ids** (a hash of the source row id). A device that upgrades offline and the server therefore produce the same rows, and syncing them later merges instead of duplicating.
 
 ## Offline packaging
 

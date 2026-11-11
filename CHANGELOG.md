@@ -27,6 +27,7 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ### Removed
 - The Lock button in the navigation bar. The PIN is still asked for in every new session, and "Hand to patient" is on the Add Patient page.
+- **Upgrade paths from 0.1.0–0.3.0** (no real clinic data existed yet). The server migrations are collapsed into one baseline, `20261110090000-initial-schema.sql` (the full current schema plus the FDI tooth catalog). Removed: migrations `20261110120000-normalize-patients`, `20261111090000-single-address` and `20261111090001-dental-classification`, the integer-id bookkeeping conversion, the on-device Dexie upgrades (one baseline version remains), `shared/legacy.ts` and `legacy-v3.ts` (`deterministicUuid` moved to `shared/ids.ts`), and their tests. **Databases created before this change must be deleted** (server `clinic.db`, and the browser/desktop app data), unless they were already at the 0.3.0 schema.
 
 ## [0.3.0] - 2026-11-11
 

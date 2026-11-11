@@ -1,7 +1,7 @@
 // Sample data for trying the app ("Load sample data" in development, `npm run seed` on a server,
 // and the e2e tests). Deterministic: the same seed always produces the same rows and ids, so
 // loading twice updates instead of duplicating, and the rows can be removed again by id.
-import { deterministicUuid } from './legacy.js';
+import { deterministicUuid } from './ids.js';
 import { QUADRANTS } from './teeth.js';
 import type { Condition, PaymentMethod } from './vocab.js';
 import type { AnyRow, SyncTable } from './index.js';

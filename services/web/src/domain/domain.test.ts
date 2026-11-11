@@ -3,17 +3,12 @@ import {
   deterministicUuid,
   formatName,
   isValidTooth,
-  legacyAddressRow,
-  legacyPatientPatch,
-  legacyPaymentRow,
-  legacyV3Address,
   nationalityOf,
   nationalityOptions,
   OTHER_PROCEDURE,
   nameGroup,
   nameSortKey,
   paidByProcedure,
-  splitLegacyFullName,
   validateColumns,
   type Condition,
   type DentalRecord,
@@ -87,7 +82,7 @@ test('age accounts for whether the birthday has passed', () => {
 
 const patient = (extra: Partial<Patient> = {}): Patient => ({
   ...base, id: 'p', salutation: '', firstName: 'Maria', middleName: 'Clara', lastName: 'Santos',
-  birthDate: '', occupation: 'Teacher', civilStatus: '', citizenshipCode: 'PH', addressLine1: '', addressCountryCode: '', photo: '', remarks: '', ...extra,
+  birthDate: '', occupation: 'Teacher', civilStatus: '', citizenshipCode: 'PH', addressLine1: '', addressCountryCode: '', photo: '', remarks: '', dentalClassification: '', ...extra,
 });
 const proc = (id: string, date: string, cost: number, extra: Partial<Procedure> = {}): Procedure => ({ ...base, id, patientId: 'p', type: 't', date, time: '', costCents: cost, remarks: '', ...extra });
 const pay = (procedureId: string, amountCents: number, extra: Partial<Payment> = {}): Payment => ({ ...base, id: `y${++n}`, procedureId, amountCents, paidAt: '2026-01-01T09:00', method: 'cash', remarks: '', ...extra });
@@ -159,20 +154,6 @@ test('procedure type: "Other" stores the typed text; reopening a typed type sele
   assert.deepEqual(splitProcedureType(''), { choice: '', other: '' });
 });
 
-test('legacy v2 → v3: the primary (else oldest) live address becomes one line', () => {
-  const addr = (id: string, extra: Record<string, unknown>) => ({ id, patientId: 'p', label: '', street: '', district: '', city: '', province: '', postalCode: '', countryCode: 'PH', isPrimary: false, isDeleted: false, createdAt: '2026-01-01T00:00:00Z', ...extra });
-  assert.deepEqual(
-    legacyV3Address([
-      addr('a', { street: 'Old St', createdAt: '2025-01-01T00:00:00Z' }),
-      addr('b', { street: '12 Mabini St', city: 'Quezon City', province: 'Metro Manila', postalCode: '1100', isPrimary: true }),
-      addr('c', { street: 'Deleted', isPrimary: true, isDeleted: true }),
-    ]),
-    { addressLine1: '12 Mabini St, Quezon City, Metro Manila 1100', addressCountryCode: 'PH' },
-  );
-  assert.equal(legacyV3Address([addr('x', { street: 'Old St', createdAt: '2025-01-01T00:00:00Z' }), addr('y', { street: 'New St' })]).addressLine1, 'Old St');
-  assert.deepEqual(legacyV3Address([]), { addressLine1: '', addressCountryCode: '' });
-});
-
 test('paging: pages are clamped and group start pages point to the first item of each letter', () => {
   const list = Array.from({ length: 60 }, (_, i) => (i < 30 ? 'A' : i < 55 ? 'B' : 'C'));
   assert.equal(paginate(list, 25, 99).page, 3);
@@ -183,30 +164,10 @@ test('paging: pages are clamped and group start pages point to the first item of
   assert.deepEqual(pageWindow(1, 2), [1, 2]);
 });
 
-test('legacy v1 → v2: name split keeps surname particles with the last name', () => {
-  assert.deepEqual(splitLegacyFullName('Juan Dela Cruz'), { firstName: 'Juan', middleName: '', lastName: 'Dela Cruz' });
-  assert.deepEqual(splitLegacyFullName('Ana Marie de los Santos'), { firstName: 'Ana', middleName: 'Marie', lastName: 'de los Santos' });
-  assert.deepEqual(splitLegacyFullName('Madonna'), { firstName: 'Madonna', middleName: '', lastName: '' });
-});
-
-test('legacy v1 → v2: citizenship becomes a code, unknown text is kept in remarks', () => {
-  assert.equal(legacyPatientPatch({ id: 'x', citizenship: 'Filipino' }).citizenshipCode, 'PH');
-  const odd = legacyPatientPatch({ id: 'x', citizenship: 'Martian', remarks: 'Allergic to latex' });
-  assert.equal(odd.citizenshipCode, '');
-  assert.equal(odd.remarks, 'Allergic to latex\nCitizenship (from earlier record): Martian');
-});
-
-test('legacy v1 → v2: address and payment rows are deterministic (device and server agree)', () => {
-  const a1 = legacyAddressRow({ id: 'p1', address: '12 Mabini St' }, 'now')!;
-  const a2 = legacyAddressRow({ id: 'p1', address: '12 Mabini St' }, 'later')!;
-  assert.equal(a1.id, a2.id);
-  assert.match(a1.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-  assert.equal(legacyAddressRow({ id: 'p1', address: '  ' }, 'now'), null);
-  const y = legacyPaymentRow({ id: 'r1', date: '2026-02-01', time: '', paidCents: 1500 }, 'now')!;
-  assert.equal(y.paidAt, '2026-02-01T00:00');
-  assert.equal(y.amountCents, 1500);
-  assert.equal(legacyPaymentRow({ id: 'r1', date: '2026-02-01', paidCents: 0 }, 'now'), null);
+test('deterministic ids: same seed → same UUID-shaped id', () => {
+  assert.equal(deterministicUuid('a'), deterministicUuid('a'));
   assert.notEqual(deterministicUuid('a'), deterministicUuid('b'));
+  assert.match(deterministicUuid('a'), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
 
 test('validation: vocabularies, money and teeth are enforced', () => {
@@ -229,7 +190,6 @@ test('dental classification: suggested from age until the dentist chooses; chart
   assert.equal(suggestDentalClassification(13), 'permanent');
 
   assert.deepEqual(classificationOf({ birthDate: '2022-01-01', dentalClassification: '' }, today), { value: 'primary', suggested: true });
-  assert.deepEqual(classificationOf({ birthDate: '2022-01-01' }, today), { value: 'primary', suggested: true }); // rows from before 0.4.0
   assert.deepEqual(classificationOf({ birthDate: '2022-01-01', dentalClassification: 'mixed' }, today), { value: 'mixed', suggested: false });
   assert.deepEqual(classificationOf({ birthDate: '', dentalClassification: '' }, today), { value: 'permanent', suggested: true });
 

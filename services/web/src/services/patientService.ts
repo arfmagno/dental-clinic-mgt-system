@@ -94,7 +94,6 @@ export async function savePatient(id: string | undefined, fields: PatientFields,
     // a country without an address line says nothing; keep it only when there is an address
     addressCountryCode: fields.addressLine1.trim() ? fields.addressCountryCode : '',
     remarks: fields.remarks.trim(),
-    dentalClassification: fields.dentalClassification ?? '',
   };
   const problem = validatePatient(clean);
   if (problem) throw new Error(problem);

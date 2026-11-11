@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { deterministicUuid } from '@clinic/shared';
+import { SYNC_TABLES, TABLE_COLUMNS, TOOTH_CATALOG } from '@clinic/shared';
 import { openDriver } from './infrastructure/db/open.js';
 import { migrate } from './migrate.js';
 import { checkMigrationFiles, loadMigrations, MIGRATIONS_DIR } from './migrations/index.js';
@@ -12,20 +12,14 @@ import type { Migration } from './migrations/types.js';
 import { SyncService } from './services/syncService.js';
 
 const iso = () => new Date().toISOString();
-const V1 = '20261110090000';
-const V2 = '20261110120000';
-const V3 = '20261111090000';
-const V4 = '20261111090001'; // dental-classification
-const upTo = async (version: string) => (await loadMigrations()).filter((m) => m.version <= version);
+const V1 = '20261110090000'; // baseline schema
 
 // ---------------- files, names and the generator (unit) ----------------
 test('migration files in the repo are well named, unique and load', async () => {
   assert.deepEqual(checkMigrationFiles(await readdir(MIGRATIONS_DIR)), []);
   const list = await loadMigrations();
-  assert.deepEqual(list.map((m) => m.version), [V1, V2, V3, V4]);
-  assert.deepEqual(list.map((m) => m.file?.split('.').pop()), ['sql', 'ts', 'ts', 'sql']);
-  assert.equal(list[3].name, 'dental classification');
-  assert.equal(list[2].name, 'single address');
+  assert.deepEqual(list.map((m) => m.version), [V1]);
+  assert.equal(list[0].name, 'initial schema');
 });
 
 test('bad file names, impossible timestamps and duplicate versions are reported', () => {
@@ -74,36 +68,36 @@ test('loader runs .sql and .ts files from a folder, in version order', async () 
 // ---------------- runner (integration, real SQLite) ----------------
 test('migrations apply once and are idempotent', async () => {
   const db = openDriver('sqlite::memory:');
-  assert.deepEqual(await migrate(db), [V1, V2, V3, V4]);
+  assert.deepEqual(await migrate(db), [V1]);
   assert.deepEqual(await migrate(db), []);
 });
 
-test('dental-classification: patients get the column, empty (= suggest from age) by default', async () => {
+test('baseline schema matches the shared model: every synced column, the FDI tooth catalog, foreign keys', async () => {
   const db = openDriver('sqlite::memory:');
-  await migrate(db, { migrations: await upTo(V3) });
-  await db.run(
-    `INSERT INTO patients (id, createdAt, updatedAt, isDeleted, serverSeq, salutation, firstName, middleName, lastName, birthDate, occupation, civilStatus, citizenshipCode, addressLine1, addressCountryCode, photo, remarks)
-     VALUES ('p1', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 0, 1, '', 'Ana', '', 'Reyes', '2019-01-01', '', '', 'PH', '', '', '', '')`,
-  );
-  assert.deepEqual(await migrate(db), [V4]);
-  assert.deepEqual(await db.get('SELECT dentalClassification FROM patients'), { dentalClassification: '' });
-});
+  await migrate(db);
+  for (const table of SYNC_TABLES) {
+    const cols = (await db.all<{ name: string }>(`SELECT name FROM pragma_table_info('${table}')`)).map((c) => c.name);
+    for (const c of ['id', 'createdAt', 'updatedAt', 'isDeleted', 'serverSeq', ...TABLE_COLUMNS[table]]) assert.ok(cols.includes(c), `${table}.${c}`);
+    assert.equal(cols.length, 5 + TABLE_COLUMNS[table].length, `${table} has no extra columns`);
+  }
+  const teeth = await db.all<{ number: number; name: string }>('SELECT number, name FROM teeth ORDER BY number');
+  assert.deepEqual(teeth, [...TOOTH_CATALOG].sort((a, b) => a.number - b.number).map((t) => ({ number: t.number, name: t.name })));
 
-test('databases from before timestamped names (integer ids) are recognised', async () => {
-  const db = openDriver('sqlite::memory:');
-  await migrate(db, { migrations: await upTo(V2) });
-  // rewrite the bookkeeping to the old v0.2.0 shape
-  await db.exec(`DROP TABLE _migrations;
-    CREATE TABLE _migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL, appliedAt TEXT NOT NULL);
-    INSERT INTO _migrations VALUES (1, 'initial schema', '2026-11-10T00:00:00Z'), (2, 'normalise', '2026-11-10T00:00:00Z');`);
-  assert.deepEqual(await migrate(db), [V3, V4], 'only the new migrations run');
-  assert.deepEqual((await db.all<{ version: string }>('SELECT version FROM _migrations ORDER BY version')).map((r) => r.version), [V1, V2, V3, V4]);
+  const now = iso();
+  await db.run("INSERT INTO patients (id, createdAt, updatedAt, serverSeq, firstName, lastName) VALUES ('p1', ?, ?, 1, 'Ana', 'Reyes')", [now, now]);
+  assert.deepEqual(await db.get('SELECT dentalClassification, addressLine1 FROM patients'), { dentalClassification: '', addressLine1: '' });
+  await db.run("INSERT INTO dental_records (id, createdAt, updatedAt, serverSeq, patientId, recordedAt) VALUES ('r1', ?, ?, 2, 'p1', ?)", [now, now, now]);
+  await assert.rejects(
+    db.run("INSERT INTO tooth_entries (id, createdAt, updatedAt, serverSeq, recordId, patientId, tooth, condition) VALUES ('e1', ?, ?, 3, 'r1', 'p1', 19, 'filled')", [now, now]),
+    /FOREIGN KEY/,
+    'tooth 19 does not exist in FDI notation',
+  );
 });
 
 test('a migration older than one already applied is refused', async () => {
   const db = openDriver('sqlite::memory:');
   await migrate(db);
-  const late: Migration = { version: '20261110100000', name: 'from an old branch', up: async () => {} };
+  const late: Migration = { version: '20261101000000', name: 'from an old branch', up: async () => {} };
   await assert.rejects(migrate(db, { migrations: [...(await loadMigrations()), late] }), /older than already-applied/);
 });
 
@@ -141,82 +135,5 @@ test('a failing migration rolls back completely and is not recorded', async () =
   };
   await assert.rejects(migrate(db, { migrations: [...(await loadMigrations()), bad] }), /boom/);
   assert.equal(await db.get("SELECT name FROM sqlite_master WHERE name = 'half_done'"), undefined);
-  assert.equal((await db.all('SELECT version FROM _migrations')).length, 4);
-});
-
-test('normalize-patients (v1 → v2): names, citizenship, addresses, payments, tooth FK', async () => {
-  const db = openDriver('sqlite::memory:');
-  await migrate(db, { migrations: await upTo(V1) }); // a v0.1.0 database
-  const now = iso();
-  await db.run(
-    `INSERT INTO patients (id, createdAt, updatedAt, isDeleted, serverSeq, fullName, address, citizenship, remarks)
-     VALUES ('p1', ?, ?, 0, 1, 'Juan Miguel Dela Cruz', '12 Mabini St, Quezon City', 'Filipino', ''),
-            ('p2', ?, ?, 0, 2, 'Ana', '', 'Martian', 'VIP')`,
-    [now, now, now, now],
-  );
-  await db.run(
-    `INSERT INTO procedures (id, createdAt, updatedAt, isDeleted, serverSeq, patientId, type, date, time, costCents, paidCents)
-     VALUES ('pr1', ?, ?, 0, 3, 'p1', 'Filling', '2026-01-05', '10:30', 150000, 50000),
-            ('pr2', ?, ?, 0, 4, 'p1', 'Check-up', '2026-02-01', '', 0, 0)`,
-    [now, now, now, now],
-  );
-  await db.run(`INSERT INTO dental_records (id, createdAt, updatedAt, isDeleted, serverSeq, patientId, procedureId, recordedAt) VALUES ('r1', ?, ?, 0, 5, 'p1', 'pr1', '2026-01-05T10:30')`, [now, now]);
-  await db.run(`INSERT INTO tooth_entries (id, createdAt, updatedAt, isDeleted, serverSeq, recordId, patientId, procedureId, tooth, condition) VALUES ('e1', ?, ?, 0, 6, 'r1', 'p1', 'pr1', 16, 'filled')`, [now, now]);
-  await db.exec("UPDATE sync_meta SET value = 6 WHERE key = 'seq'");
-
-  assert.deepEqual(await migrate(db, { migrations: await upTo(V2) }), [V2]);
-
-  const p1 = await db.get<Record<string, unknown>>('SELECT * FROM patients WHERE id = ?', ['p1']);
-  assert.deepEqual([p1?.firstName, p1?.middleName, p1?.lastName, p1?.citizenshipCode], ['Juan', 'Miguel', 'Dela Cruz', 'PH']);
-  assert.ok(!('fullName' in p1!) && !('address' in p1!) && !('citizenship' in p1!), 'old columns dropped');
-  const p2 = await db.get<Record<string, unknown>>('SELECT * FROM patients WHERE id = ?', ['p2']);
-  assert.equal(p2?.citizenshipCode, '');
-  assert.match(String(p2?.remarks), /VIP\nCitizenship \(from earlier record\): Martian/, 'unrecognised citizenship is not lost');
-
-  const addresses = await db.all<Record<string, unknown>>('SELECT * FROM patient_addresses');
-  assert.equal(addresses.length, 1, 'only patients with an address get one');
-  assert.equal(addresses[0].id, deterministicUuid('v2-address:p1'), 'ids are deterministic so the device upgrade matches');
-
-  const payments = await db.all<Record<string, unknown>>('SELECT * FROM payments');
-  assert.equal(payments.length, 1, 'zero amounts produce no payment');
-  assert.deepEqual([payments[0].procedureId, payments[0].amountCents, payments[0].paidAt], ['pr1', 50000, '2026-01-05T10:30']);
-
-  assert.equal((await db.all('SELECT * FROM tooth_entries')).length, 1, 'tooth entries survive the table rebuild');
-  await assert.rejects(
-    db.run(`INSERT INTO tooth_entries (id, createdAt, updatedAt, isDeleted, serverSeq, recordId, patientId, tooth, condition) VALUES ('e2', ?, ?, 0, 99, 'r1', 'p1', 19, 'filled')`, [now, now]),
-    /FOREIGN KEY/,
-    'tooth 19 does not exist in FDI notation',
-  );
-  assert.equal((await db.get<{ n: number }>('SELECT COUNT(*) AS n FROM teeth'))?.n, 52);
-  const pulled = await new SyncService(db).pull(6, 100);
-  assert.ok(new Set(pulled.rows.map((r) => r.table)).has('payments'), 'new rows are pulled by devices');
-});
-
-test('single-address (v2 → v3): primary address folded into the patient, table dropped', async () => {
-  const db = openDriver('sqlite::memory:');
-  await migrate(db, { migrations: await upTo(V2) });
-  const now = iso();
-  const base = (id: string) => [id, now, now];
-  for (const id of ['p1', 'p2', 'p3']) await db.run("INSERT INTO patients (id, createdAt, updatedAt, serverSeq, firstName, lastName) VALUES (?, ?, ?, 1, 'A', 'B')", base(id));
-  const addr = (id: string, patientId: string, f: string, isPrimary: number, isDeleted = 0, createdAt = now) =>
-    db.run(
-      `INSERT INTO patient_addresses (id, createdAt, updatedAt, isDeleted, serverSeq, patientId, street, district, city, province, postalCode, countryCode, isPrimary)
-       VALUES (?, ?, ?, ?, 2, ?, ?, 'Brgy. 1', 'Quezon City', 'Metro Manila', '1100', ?, ?)`,
-      [id, createdAt, now, isDeleted, patientId, f, f === 'Tokyo' ? 'JP' : 'PH', isPrimary],
-    );
-  await addr('a1', 'p1', '12 Mabini St', 0, 0, '2026-01-01T00:00:00Z');
-  await addr('a2', 'p1', 'Tokyo', 1); // primary wins
-  await addr('a3', 'p2', 'Gone St', 1, 1); // deleted only → no address
-  await db.exec("UPDATE sync_meta SET value = 2 WHERE key = 'seq'");
-
-  assert.deepEqual(await migrate(db), [V3, V4]);
-  const rows = await db.all<Record<string, any>>('SELECT id, addressLine1, addressCountryCode, serverSeq FROM patients ORDER BY id');
-  assert.deepEqual(rows.map((r) => [r.addressLine1, r.addressCountryCode]), [
-    ['Tokyo, Brgy. 1, Quezon City, Metro Manila 1100', 'JP'],
-    ['', ''],
-    ['', ''],
-  ]);
-  assert.ok(rows[0].serverSeq > 2, 'changed patient is re-pulled by devices');
-  assert.equal(rows[1].serverSeq, 1, 'unchanged patients are not re-stamped');
-  assert.equal(await db.get("SELECT name FROM sqlite_master WHERE name = 'patient_addresses'"), undefined);
+  assert.equal((await db.all('SELECT version FROM _migrations')).length, 1);
 });

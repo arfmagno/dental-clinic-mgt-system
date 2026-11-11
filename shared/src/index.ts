@@ -4,8 +4,7 @@ export * from './names.js';
 export * from './countries.js';
 export * from './phone.js';
 export * from './validation.js';
-export * from './legacy.js';
-export * from './legacy-v3.js';
+export * from './ids.js';
 export * from './nationalities.js';
 export * from './vocab.js';
 export * from './demo.js';
@@ -33,8 +32,8 @@ export interface Patient extends BaseRow {
   addressCountryCode: string; // ISO 3166-1 alpha-2, or '' when there is no address
   photo: string; // compressed data URL or ''
   remarks: string;
-  /** Which dental chart applies (see vocab.ts); '' = not chosen, suggested from age. Absent on rows created before the field existed. */
-  dentalClassification?: DentalClassification | '';
+  /** Which dental chart applies (see vocab.ts); '' = not chosen, suggested from age. */
+  dentalClassification: DentalClassification | '';
 }
 
 export interface PatientContact extends BaseRow {

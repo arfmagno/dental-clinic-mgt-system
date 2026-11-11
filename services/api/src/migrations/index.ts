@@ -70,12 +70,3 @@ export async function loadMigrations(dir = MIGRATIONS_DIR): Promise<Migration[]>
   }
   return out;
 }
-
-/**
- * Databases created before timestamped file names recorded integer ids. Their equivalents, so
- * those databases are recognised as already migrated.
- */
-export const LEGACY_VERSIONS: Readonly<Record<number, string>> = {
-  1: '20261110090000',
-  2: '20261110120000',
-};

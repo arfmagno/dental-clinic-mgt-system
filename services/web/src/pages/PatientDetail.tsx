@@ -58,7 +58,7 @@ export function PatientDetail() {
 
   const toFields = (): PatientFields => {
     const { id: _i, createdAt: _c, updatedAt: _u, isDeleted: _d, ...fields } = patient;
-    return { dentalClassification: '', ...fields };
+    return fields;
   };
   const toContacts = (): ContactInput[] => contacts.map((c) => ({ id: c.id, type: c.type, value: c.value, label: c.label, isPrimary: c.isPrimary }));
 

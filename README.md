@@ -16,7 +16,7 @@ Patient records, FDI dental charts, procedures and payments for a dental clinic.
 | --- | --- |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, data model, sync protocol, lock stages, security model, roadmap design hooks |
 | [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md) | Module-by-module code reference and "how do I add X" recipes |
-| [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Adding tables/columns and moving data safely (with migration 002 as a worked example) |
+| [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Adding tables/columns and moving data safely (recipes for columns, tables and data moves) |
 | [docs/HOSTING.md](docs/HOSTING.md) | Deploying, environment variables, backups, installing the app |
 | [docs/SPEC_CHECKLIST.md](docs/SPEC_CHECKLIST.md) | Every requested item, where it is implemented, and how it was verified |
 | [CHANGELOG.md](CHANGELOG.md) · [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | What changed, and what it means for the clinic |
