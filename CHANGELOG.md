@@ -5,6 +5,7 @@ All notable changes to this project are documented here. Format based on [Keep a
 ## [Unreleased]
 
 ### Added
+- **GitHub automation:** CI on every push and pull request (lint, typecheck, unit and end-to-end tests), a release workflow on version tags (Windows installer on a GitHub Release, server image on GHCR), and weekly Dependabot updates.
 - **Dental classification** per patient: Pediatric (primary teeth), Mixed dentition, or Adult (permanent teeth). The dentist chooses it on the patient form; until then it is suggested from age (under 6 primary, 6–12 mixed, 13+ adult) and shown as "(by age)". The patient page, the Add Record form and the PDF show only that patient's chart (both charts for mixed). Server migration `20261111090001-dental-classification.sql` (additive column `patients.dentalClassification`, default `''`).
 - **Transactions** page (`/transactions`): pick a patient, see their outstanding total and every unsettled record, settle one (any amount, defaults to its balance) or select several and settle them in full at once, and see their payment history. Settling adds payment rows; balances stay derived (no new table).
 - **In-app pop-ups and notifications:** confirmations are app dialogs with descriptive buttons (no browser `confirm`), and a short notification confirms each action ("Record added", "Payment recorded", "Settled 3 records · ₱…").

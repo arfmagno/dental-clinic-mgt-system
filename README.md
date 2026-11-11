@@ -59,6 +59,16 @@ There are two ways. Both open from an icon with no internet, and both keep recor
 
 Patient data lives in that device's browser storage until it syncs, so do not clear site data on a device with unsynced changes (the chip shows how many are waiting).
 
+## Automation (GitHub Actions)
+
+| Workflow | When | What |
+| --- | --- | --- |
+| `.github/workflows/ci.yml` | Every push to `master` and every pull request | Lint, typecheck, unit tests, then the end-to-end suite in Chromium (traces uploaded when it fails) |
+| `.github/workflows/release.yml` | Pushing a tag `vX.Y.Z` that matches `package.json` | Runs the checks, then attaches the Windows installer to a GitHub Release and publishes the server image to `ghcr.io/<owner>/<repo>:X.Y.Z` and `:latest` |
+| `.github/dependabot.yml` | Mondays | Dependency update PRs (minor/patch grouped; `better-sqlite3` stays on v11) and GitHub Actions updates |
+
+To release: bump the version in `package.json` files and the changelog, commit, then `git tag v0.4.0 && git push origin v0.4.0`.
+
 ## Repository layout
 
 ```

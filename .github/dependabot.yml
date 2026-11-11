@@ -1,0 +1,26 @@
+# Weekly dependency updates as pull requests (CI runs on each one).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # minor and patch bumps arrive together in one PR; majors come one by one
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Stays on v11 (the native build that matches the supported Node/Electron versions).
+      - dependency-name: better-sqlite3
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ['*']
