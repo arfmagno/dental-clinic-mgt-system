@@ -12,7 +12,10 @@ if not exist services\web\dist\index.html (
   call npm run build || goto :fail
 )
 if "%CLINIC_PASSWORD%"=="" set CLINIC_PASSWORD=change-me-please
-if "%AUTH_SECRET%"=="" set AUTH_SECRET=change-this-to-a-long-random-string-1234567890
+REM A random signing secret, made once per computer and kept with the database (never in the repo).
+if not exist services\api\data mkdir services\api\data
+if "%AUTH_SECRET%"=="" if not exist services\api\data\auth-secret.txt powershell -NoProfile -Command "$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | ForEach-Object { $_.ToString('x2') })" > services\api\data\auth-secret.txt
+if "%AUTH_SECRET%"=="" set /p AUTH_SECRET=<services\api\data\auth-secret.txt
 set NODE_ENV=production
 set PORT=3001
 set HOST=127.0.0.1

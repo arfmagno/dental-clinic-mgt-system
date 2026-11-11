@@ -22,8 +22,13 @@ if (!isDesktop) registerSW({ immediate: true });
 // Ask the browser not to evict local data (patient records) under storage pressure.
 void navigator.storage?.persist?.();
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const render = () =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+
+// The public demo build fills the browser with sample data first; the normal build skips this.
+if (import.meta.env.VITE_DEMO === 'true') void import('./services/demo').then((m) => m.seedDemo()).finally(render);
+else render();
