@@ -2,6 +2,14 @@
 
 Written for the clinic. The technical list is in [CHANGELOG.md](../CHANGELOG.md).
 
+## Version 0.4.1 (2026-11-12)
+
+### Changed behaviour
+
+- **Only an admin can export all data**, as with restoring. A backup is every patient record in one file.
+- **Backups no longer contain anyone's PIN**, only staff names (so the activity log still shows who did what). Restoring a backup never adds or changes staff accounts.
+- Backups made with 0.4.0 still restore normally.
+
 ## Version 0.4.0 (2026-11-12)
 
 ### What's new

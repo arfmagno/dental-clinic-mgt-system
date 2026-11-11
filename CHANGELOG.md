@@ -4,6 +4,12 @@ All notable changes to this project are documented here. Format based on [Keep a
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-12
+
+### Security
+- **Exporting all data is admin-only** (restoring already was): a backup is every patient record in one file.
+- Backups no longer contain staff PIN hashes (names and roles only), and restoring never adds or changes staff accounts.
+
 ## [0.4.0] - 2026-11-12
 
 ### Added

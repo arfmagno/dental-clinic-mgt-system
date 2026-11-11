@@ -1,7 +1,7 @@
 {
   "name": "@clinic/desktop",
   "productName": "Magno Dental Clinic",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "Dental clinic records, charts and procedures. Works offline.",
   "author": "Magno Dental Clinic",
