@@ -241,3 +241,29 @@ test('dental classification: suggested from age until the dentist chooses; chart
   assert.equal(validateColumns('patients', { dentalClassification: '' }), null);
   assert.equal(validateColumns('patients', { dentalClassification: 'baby' }), 'invalid dentalClassification');
 });
+
+test('phone numbers: country code, flag, parsing older numbers, tel: links', async () => {
+  const { DIAL_CODES, flagOf, formatPhone, parsePhone, phoneHref } = await import('@clinic/shared');
+  assert.equal(DIAL_CODES.PH, '63');
+  assert.equal(flagOf('PH'), '🇵🇭');
+  assert.equal(formatPhone('PH', '0917 123 4567'), '+63 917 123 4567');
+  assert.equal(formatPhone('PH', '  '), '');
+  assert.deepEqual(parsePhone('+63 917 123 4567'), { country: 'PH', national: '917 123 4567' });
+  assert.deepEqual(parsePhone('0917 123 4567'), { country: 'PH', national: '917 123 4567' }); // older rows: PH
+  assert.deepEqual(parsePhone('+639171234567'), { country: 'PH', national: '9171234567' });
+  assert.deepEqual(parsePhone('+1 416 555 0100'), { country: 'US', national: '416 555 0100' });
+  assert.deepEqual(parsePhone('+1 416 555 0100', 'CA'), { country: 'CA', national: '416 555 0100' });
+  assert.deepEqual(parsePhone('+971 50 123 4567'), { country: 'AE', national: '50 123 4567' });
+  assert.equal(parsePhone('+63 917 ').national, '917 '); // spaces survive while typing
+  assert.equal(phoneHref('+63 917 123 4567'), '+639171234567');
+  assert.equal(phoneHref('0917-123-4567'), '+639171234567');
+});
+
+test('phone search: "0917…", digits only, or with the country code', async () => {
+  const { contactSearchText } = await import('./search');
+  const { emptyPatient } = await import('../services/patientService');
+  const p = { ...emptyPatient(), firstName: 'Ana', lastName: 'Cruz' } as never;
+  const text = contactSearchText({ type: 'phone', value: '+63 917 555 0101' });
+  for (const q of ['0917 555', '09175550101', '639175550101', '+63 917', 'ana 0917']) assert.equal(matchesPatient(p, text, q), true, q);
+  assert.equal(contactSearchText({ type: 'email', value: 'a@b.co' }), 'a@b.co');
+});

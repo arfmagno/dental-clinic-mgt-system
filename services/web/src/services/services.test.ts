@@ -30,7 +30,8 @@ describe('patients', () => {
     const p = (await db.patients.get(id))!;
     expect(p).toMatchObject({ firstName: 'Juan', addressLine1: '12 Mabini St, Quezon City', addressCountryCode: 'PH', dirty: 1 });
     const contacts = await db.patient_contacts.where('patientId').equals(id).sortBy('value');
-    expect(contacts.map((c) => [c.value, c.isPrimary])).toEqual([['0917 000 0001', true], ['0917 000 0002', false]]);
+    // phones gain the country code (PH unless chosen); the trunk 0 is dropped
+    expect(contacts.map((c) => [c.value, c.isPrimary])).toEqual([['+63 917 000 0001', true], ['+63 917 000 0002', false]]);
   });
 
   test('no address line → no address country; editing removes dropped contacts softly', async () => {
@@ -39,9 +40,21 @@ describe('patients', () => {
     const [first] = (await db.patient_contacts.where('patientId').equals(id).sortBy('value'));
     await savePatient(id, { ...juan(), lastName: 'Santos' }, [{ ...phone('1', true), id: first.id }]);
     const all = await db.patient_contacts.where('patientId').equals(id).toArray();
-    expect(all.filter((c) => !c.isDeleted).map((c) => c.value)).toEqual(['1']);
-    expect(all.find((c) => c.value === '2')!.isDeleted).toBe(true);
+    expect(all.filter((c) => !c.isDeleted).map((c) => c.value)).toEqual(['+63 1']);
+    expect(all.find((c) => c.value === '+63 2')!.isDeleted).toBe(true);
     expect((await db.patients.get(id))!.lastName).toBe('Santos');
+  });
+
+  test('phone country codes: chosen country kept, shared codes resolved by the form choice, numbers with a plus kept', async () => {
+    const id = await savePatient(undefined, juan(), [
+      { ...phone('202 555 0100', true), country: 'US' },
+      { ...phone('416 555 0100'), country: 'CA' },
+      phone('+44 20 7946 0000'),
+      phone('+639171234567'),
+    ]);
+    const values = (await db.patient_contacts.where('patientId').equals(id).toArray()).map((c) => c.value);
+    expect(values.sort()).toEqual(['+1 202 555 0100', '+1 416 555 0100', '+44 20 7946 0000', '+63 9171234567']);
+    expect((await db.patient_contacts.toArray()).some((c) => 'country' in c)).toBe(false); // form state is not stored
   });
 });
 

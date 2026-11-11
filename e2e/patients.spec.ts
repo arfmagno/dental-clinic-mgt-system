@@ -29,7 +29,7 @@ test('add patient: last name and date of birth are required; citizenship default
 
   // one address line + country; no multiple addresses
   await expect(page.getByLabel('Address', { exact: true })).toHaveCount(1);
-  await expect(page.getByLabel('Country')).toHaveValue('PH');
+  await expect(page.getByLabel('Country', { exact: true })).toHaveValue('PH');
   await expect(page.getByRole('button', { name: /add address/i })).toHaveCount(0);
 
   await page.getByLabel('Salutation').selectOption('Ms.');
@@ -49,7 +49,7 @@ test('add patient: last name and date of birth are required; citizenship default
   await expect(facts).toContainText('Filipino');
   await expect(facts).toContainText('12 Mabini St, Brgy. San Roque, Quezon City');
   await expect(facts).not.toContainText('Philippines'); // the country is only shown when not PH
-  await expect(facts).toContainText(/m\.me\/maria\.santos[\s\S]*primary[\s\S]*0917/i);
+  await expect(facts).toContainText(/m\.me\/maria\.santos[\s\S]*primary[\s\S]*\+63 917 555 0101/i); // PH +63 by default
   expect(errors).toEqual([]);
 });
 
@@ -58,7 +58,7 @@ test('a foreign address shows its country; editing keeps a single address', asyn
   await page.locator('.profile').getByRole('button', { name: 'Edit', exact: true }).click();
   const modal = page.locator('.modal');
   await modal.getByLabel('Citizenship *').selectOption({ label: 'Japanese' });
-  await modal.getByLabel('Country').selectOption({ label: 'Japan' });
+  await modal.getByLabel('Country', { exact: true }).selectOption({ label: 'Japan' });
   await modal.getByRole('button', { name: 'Save changes' }).click();
   await expect(modal).toHaveCount(0);
   await expect(page.locator('.facts')).toContainText('2-1 Shibuya, Tokyo, Japan');

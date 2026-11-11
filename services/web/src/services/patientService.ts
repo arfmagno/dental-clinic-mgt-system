@@ -1,4 +1,4 @@
-import { DEFAULT_CITIZENSHIP, DEFAULT_COUNTRY, DENTAL_CLASSIFICATIONS, type ContactType, type Patient } from '@clinic/shared';
+import { DEFAULT_CITIZENSHIP, DEFAULT_COUNTRY, DENTAL_CLASSIFICATIONS, formatPhone, parsePhone, type ContactType, type Patient } from '@clinic/shared';
 import type { Table } from 'dexie';
 import { db, type Local } from '../data/db';
 import { createRow, softDeleteRow, updateRow } from '../data/repository';
@@ -11,6 +11,8 @@ export interface ContactInput {
   value: string;
   label: string;
   isPrimary: boolean;
+  /** Phone only, form state: the chosen country when several share a calling code (not stored). */
+  country?: string;
 }
 
 export const emptyPatient = (): PatientFields => ({
@@ -98,7 +100,14 @@ export async function savePatient(id: string | undefined, fields: PatientFields,
   if (problem) throw new Error(problem);
 
   const wantedContacts = withSinglePrimary(
-    contacts.map((c) => ({ ...c, value: c.value.trim(), label: c.label.trim() })).filter((c) => c.value),
+    contacts
+      .map(({ country, ...c }) => {
+        const value = c.value.trim();
+        // phones are kept as "+63 917 123 4567"; older numbers without a country code are read as PH
+        const p = c.type === 'phone' && value ? parsePhone(value, country) : null;
+        return { ...c, value: p ? formatPhone(p.country, p.national).trim() : value, label: c.label.trim() };
+      })
+      .filter((c) => c.value),
   );
   return db.transaction('rw', db.patients, db.patient_contacts, async () => {
     const patientId = id ?? (await createRow(db.patients, clean)).id;

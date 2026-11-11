@@ -126,7 +126,7 @@ export function PatientForm({ initial, initialContacts, submitLabel, savingLabel
         </label>
         <label className="field">
           <span>Country</span>
-          <CountrySelect value={f.addressCountryCode || 'PH'} onChange={(v) => set('addressCountryCode', v)} allowEmpty={false} />
+          <CountrySelect value={f.addressCountryCode || 'PH'} onChange={(v) => set('addressCountryCode', v)} allowEmpty={false} aria-label="Country" />
         </label>
       </div>
 

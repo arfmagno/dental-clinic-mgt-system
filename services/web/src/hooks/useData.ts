@@ -12,6 +12,7 @@ import {
 } from '@clinic/shared';
 import { db } from '../data/db';
 import { formatAddress, summarize, type PatientSummary } from '../domain/format';
+import { contactSearchText } from '../domain/search';
 
 /** Live, offline-first queries. `undefined` means still loading. All hide soft-deleted rows. */
 
@@ -34,7 +35,7 @@ export function useSearchIndex(): Map<string, string> | undefined {
   return useLiveQuery(async () => {
     const map = new Map<string, string>();
     const add = (id: string, text: string) => map.set(id, `${map.get(id) ?? ''} ${text}`);
-    for (const c of await db.patient_contacts.toArray()) if (!c.isDeleted) add(c.patientId, c.value);
+    for (const c of await db.patient_contacts.toArray()) if (!c.isDeleted) add(c.patientId, contactSearchText(c));
     for (const p of await db.patients.toArray()) if (!p.isDeleted) add(p.id, formatAddress(p));
     return map;
   }, []);

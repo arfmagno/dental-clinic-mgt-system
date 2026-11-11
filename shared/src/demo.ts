@@ -110,7 +110,7 @@ export function buildDemoData(opts: DemoOptions = {}): Record<SyncTable, AnyRow[
 
     // contacts: a primary phone, sometimes an email or Messenger
     const handle = `${first}.${lastName}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z.]/g, '');
-    out.patient_contacts.push({ ...base(demoId(`contact:${i}:0`)), patientId: pid, type: 'phone', value: `09${int(10, 99)} ${int(100, 999)} ${int(1000, 9999)}`, label: child ? 'Mother' : '', isPrimary: true });
+    out.patient_contacts.push({ ...base(demoId(`contact:${i}:0`)), patientId: pid, type: 'phone', value: `+63 9${int(10, 99)} ${int(100, 999)} ${int(1000, 9999)}`, label: child ? 'Mother' : '', isPrimary: true });
     if (r() < 0.5) out.patient_contacts.push({ ...base(demoId(`contact:${i}:1`)), patientId: pid, type: r() < 0.5 ? 'email' : 'messenger', value: r() < 0.5 ? `${handle}@gmail.com` : `m.me/${handle}`, label: '', isPrimary: false });
 
     // visits over the last two years

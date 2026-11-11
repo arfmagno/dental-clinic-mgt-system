@@ -2,6 +2,7 @@
 export * from './teeth.js';
 export * from './names.js';
 export * from './countries.js';
+export * from './phone.js';
 export * from './validation.js';
 export * from './legacy.js';
 export * from './legacy-v3.js';
