@@ -1,7 +1,7 @@
 {
   "name": "dental-clinic-mgt-system",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "workspaces": [
     "shared",
@@ -20,9 +20,13 @@
     "migration:new": "npm run migration:new -w @clinic/server --",
     "e2e": "playwright test",
     "desktop": "npm start -w @clinic/desktop",
-    "dist:desktop": "npm run dist -w @clinic/desktop"
+    "dist:desktop": "npm run dist -w @clinic/desktop",
+    "coverage": "npm run coverage -w @clinic/web",
+    "lighthouse": "node scripts/lighthouse.mjs",
+    "build:demo": "npm run build:demo -w @clinic/web"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.65.0",
     "concurrently": "^9.2.5",
     "oxlint": "^1.93.0"
