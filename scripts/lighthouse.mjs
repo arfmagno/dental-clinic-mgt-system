@@ -1,8 +1,9 @@
 // npm run lighthouse — audits the production build as it is hosted (real server, fresh database).
 // Builds nothing: run `npm run build` first. Uses Chrome, or Edge/Chromium via CHROME_PATH.
-// Writes lighthouse/report.report.html (+ .json) and fails if a score drops below its floor.
+// Runs 3 times (LH_RUNS), writes the median run to lighthouse/report.report.html (+ .json) and fails if a
+// median score drops below its floor.
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = process.env.LH_PORT ?? '3158';
 const URL = `http://127.0.0.1:${PORT}/`;
+const RUNS = Number(process.env.LH_RUNS ?? 3);
 const FLOORS = { performance: 90, accessibility: 100, 'best-practices': 100, seo: 90 };
 const dataDir = mkdtempSync(path.join(tmpdir(), 'clinic-lh-'));
 
@@ -46,15 +48,29 @@ let failed = false;
 try {
   await waitForServer();
   mkdirSync(path.join(root, 'lighthouse'), { recursive: true }); // Lighthouse does not create its output folder
-  const res = spawnSync(
-    'npx',
-    ['-y', 'lighthouse@12', URL, '--quiet', '--chrome-flags=--headless=new', '--output=json', '--output=html', '--output-path=lighthouse/report', '--only-categories=performance,accessibility,best-practices,seo'],
-    { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' },
-  );
-  if (res.status !== 0) throw new Error('lighthouse failed to run');
-  const report = JSON.parse(readFileSync(path.join(root, 'lighthouse', 'report.report.json'), 'utf8'));
+  // Performance varies with the machine's load (shared CI runners especially), so the audit runs
+  // RUNS times and each score is the median, as Lighthouse recommends. The median run's report is kept.
+  const reports = [];
+  for (let i = 0; i < RUNS; i++) {
+    const out = `lighthouse/report-${i + 1}`;
+    const res = spawnSync(
+      'npx',
+      ['-y', 'lighthouse@12', URL, '--quiet', '--chrome-flags=--headless=new', '--output=json', '--output=html', `--output-path=${out}`, '--only-categories=performance,accessibility,best-practices,seo'],
+      { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' },
+    );
+    if (res.status !== 0) throw new Error('lighthouse failed to run');
+    reports.push(JSON.parse(readFileSync(path.join(root, `${out}.report.json`), 'utf8')));
+  }
+  const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+  const perf = reports.map((r) => r.categories.performance.score);
+  const mid = reports[perf.indexOf(median(perf))];
+  for (const ext of ['json', 'html']) {
+    const n = reports.indexOf(mid) + 1;
+    copyFileSync(path.join(root, `lighthouse/report-${n}.report.${ext}`), path.join(root, `lighthouse/report.report.${ext}`));
+  }
+  console.log(`performance per run: ${perf.map((s) => Math.round(s * 100)).join(', ')}`);
   for (const [id, floor] of Object.entries(FLOORS)) {
-    const score = Math.round(report.categories[id].score * 100);
+    const score = Math.round(median(reports.map((r) => r.categories[id].score)) * 100);
     const ok = score >= floor;
     failed ||= !ok;
     console.log(`${ok ? '✓' : '✗'} ${id.padEnd(15)} ${score} (floor ${floor})`);
