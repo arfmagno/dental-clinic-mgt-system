@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@fastify/compress": "^9.3.0",
-    "@fastify/cors": "^11.4.1",
+    "@fastify/cors": "^11.4.2",
     "@fastify/static": "^10.1.10",
     "better-sqlite3": "^11.10.0",
     "fastify": "^5.12.8",
