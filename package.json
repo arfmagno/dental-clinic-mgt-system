@@ -26,9 +26,9 @@
     "build:demo": "npm run build:demo -w @clinic/web"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
-    "@playwright/test": "^1.65.0",
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
     "concurrently": "^9.2.5",
-    "oxlint": "^1.93.0"
+    "oxlint": "^1.94.0"
   }
 }
